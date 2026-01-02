@@ -13,15 +13,20 @@ import {
     X,
     CreditCard,
     Building2,
-    CheckCircle2
+    CheckCircle2,
+    Clock,
+    User,
+    Check
 } from 'lucide-react';
 
-const SalesScreen: React.FC<{ clients: Client[] }> = ({ clients }) => {
-    const [quotes, setQuotes] = useState<Quote[]>(() => {
-        const saved = localStorage.getItem('schumacher_quotes');
-        return saved ? JSON.parse(saved) : [];
-    });
+interface SalesScreenProps {
+    clients: Client[];
+    quotes: Quote[];
+    onUpdateQuotes: (quotes: Quote[]) => void;
+    onApproveQuote: (quote: Quote) => void;
+}
 
+const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuotes, onApproveQuote }) => {
     const [services, setServices] = useState<Service[]>(() => {
         const saved = localStorage.getItem('schumacher_services');
         if (saved) return JSON.parse(saved);
@@ -34,6 +39,7 @@ const SalesScreen: React.FC<{ clients: Client[] }> = ({ clients }) => {
     });
 
     const [showQuoteModal, setShowQuoteModal] = useState(false);
+    const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
     const [selectedClientId, setSelectedClientId] = useState('');
     const [currentQuoteItems, setCurrentQuoteItems] = useState<QuoteItem[]>([]);
     const [discountPercent, setDiscountPercent] = useState(0);
@@ -43,10 +49,6 @@ const SalesScreen: React.FC<{ clients: Client[] }> = ({ clients }) => {
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [newServiceName, setNewServiceName] = useState('');
     const [newServicePrice, setNewServicePrice] = useState('');
-
-    useEffect(() => {
-        localStorage.setItem('schumacher_quotes', JSON.stringify(quotes));
-    }, [quotes]);
 
     useEffect(() => {
         localStorage.setItem('schumacher_services', JSON.stringify(services));
@@ -125,9 +127,23 @@ const SalesScreen: React.FC<{ clients: Client[] }> = ({ clients }) => {
             date: new Date().toISOString()
         };
 
-        setQuotes([newQuote, ...quotes]);
+        onUpdateQuotes([newQuote, ...quotes]);
         setShowQuoteModal(false);
         resetForm();
+    };
+
+    const handleDeleteQuote = (id: string) => {
+        if (window.confirm('Excluir este orçamento permanentemente?')) {
+            onUpdateQuotes(quotes.filter(q => q.id !== id));
+            setSelectedQuote(null);
+        }
+    };
+
+    const handleApprove = (quote: Quote) => {
+        if (window.confirm(`Confirmar aprovação do orçamento para ${quote.clientName}? Isso registrará uma entrada no financeiro.`)) {
+            onApproveQuote(quote);
+            setSelectedQuote(null);
+        }
     };
 
     const resetForm = () => {
@@ -174,7 +190,7 @@ const SalesScreen: React.FC<{ clients: Client[] }> = ({ clients }) => {
                                 <FileText className="w-6 h-6" />
                             </div>
                             <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${quote.status === 'approved' ? 'bg-emerald-100 text-emerald-600' :
-                                    quote.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-rose-100 text-rose-600'
+                                quote.status === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-rose-100 text-rose-600'
                                 }`}>
                                 {quote.status === 'draft' ? 'Rascunho' : quote.status === 'approved' ? 'Aprovado' : 'Pendente'}
                             </span>
@@ -200,13 +216,105 @@ const SalesScreen: React.FC<{ clients: Client[] }> = ({ clients }) => {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total com Desconto</p>
                                 <p className="text-xl font-black text-emerald-600">R$ {quote.total.toLocaleString()}</p>
                             </div>
-                            <button className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors">
+                            <button
+                                onClick={() => setSelectedQuote(quote)}
+                                className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
+                            >
                                 <ChevronRight className="w-5 h-5" />
                             </button>
                         </div>
                     </div>
                 ))}
             </div>
+
+            {/* Quote Detail Modal */}
+            {selectedQuote && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-800 overflow-hidden transform scale-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/20">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white">Orçamento #{selectedQuote.id.slice(-6)}</h2>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Status: {selectedQuote.status}</p>
+                            </div>
+                            <button onClick={() => setSelectedQuote(null)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-white dark:hover:bg-slate-800 shadow-sm transition-all">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-8 overflow-y-auto space-y-8">
+                            <div className="flex flex-col md:flex-row gap-8">
+                                <div className="flex-1 space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</label>
+                                    <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                        <Building2 className="w-5 h-5 text-emerald-500" />
+                                        <p className="font-bold text-slate-900 dark:text-white">{selectedQuote.clientName}</p>
+                                    </div>
+                                </div>
+                                <div className="w-48 space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</label>
+                                    <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 text-sm font-bold text-slate-600 dark:text-slate-400">
+                                        <Clock className="w-4 h-4" />
+                                        {new Date(selectedQuote.date).toLocaleDateString()}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Itens do Orçamento</label>
+                                <div className="space-y-2">
+                                    {selectedQuote.items.map((item, i) => (
+                                        <div key={i} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-500 text-xs font-black">
+                                                    {item.quantity}x
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{item.serviceName}</p>
+                                                    <p className="text-[10px] text-slate-400">R$ {item.unitPrice.toLocaleString()} unit.</p>
+                                                </div>
+                                            </div>
+                                            <span className="font-black text-slate-900 dark:text-white">R$ {item.total.toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-2">
+                                <div className="flex justify-between text-sm text-slate-500">
+                                    <span>Subtotal</span>
+                                    <span>R$ {selectedQuote.subtotal.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-rose-500 font-bold">
+                                    <span>Desconto ({selectedQuote.discountPercentage}%)</span>
+                                    <span>- R$ {selectedQuote.discountAmount.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between text-xl font-black text-slate-900 dark:text-white pt-3 border-t border-slate-200 dark:border-slate-800 mt-2">
+                                    <span>Valor Total</span>
+                                    <span className="text-emerald-500">R$ {selectedQuote.total.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 bg-slate-50 dark:bg-slate-950/20 border-t border-slate-100 dark:border-slate-800 flex gap-4">
+                            <button
+                                onClick={() => handleDeleteQuote(selectedQuote.id)}
+                                className="px-6 py-4 text-rose-500 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-2xl font-bold transition-all flex items-center gap-2"
+                            >
+                                <Trash2 className="w-5 h-5" /> Excluir
+                            </button>
+                            <div className="flex-1"></div>
+                            {selectedQuote.status !== 'approved' && (
+                                <button
+                                    onClick={() => handleApprove(selectedQuote)}
+                                    className="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold shadow-xl shadow-emerald-500/20 transition-all flex items-center gap-2"
+                                >
+                                    <CheckCircle2 className="w-5 h-5" /> Aprovar Orçamento
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Quote Modal */}
             {showQuoteModal && (

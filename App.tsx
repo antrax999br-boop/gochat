@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Page, User, CalendarEvent, NotificationItem, Transaction, Client } from './types';
+import { Page, User, CalendarEvent, NotificationItem, Transaction, Client, Quote } from './types';
 import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import ConnectScreen from './screens/ConnectScreen';
@@ -33,6 +33,7 @@ const App: React.FC = () => {
   const [viewedNotifications, setViewedNotifications] = useState<string[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
 
   useEffect(() => {
     // 1. Initial Supabase Session Check
@@ -91,6 +92,12 @@ const App: React.FC = () => {
       setClients(JSON.parse(savedClients));
     }
 
+    // Load quotes
+    const savedQuotes = localStorage.getItem('schumacher_quotes');
+    if (savedQuotes) {
+      setQuotes(JSON.parse(savedQuotes));
+    }
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -102,6 +109,43 @@ const App: React.FC = () => {
   const handleUpdateClients = (newClients: Client[]) => {
     setClients(newClients);
     localStorage.setItem('schumacher_clients', JSON.stringify(newClients));
+  };
+
+  const handleUpdateQuotes = (newQuotes: Quote[]) => {
+    setQuotes(newQuotes);
+    localStorage.setItem('schumacher_quotes', JSON.stringify(newQuotes));
+  };
+
+  const handleApproveQuote = (quote: Quote) => {
+    // 1. Mark quote as approved
+    const updatedQuotes = quotes.map(q => q.id === quote.id ? { ...q, status: 'approved' as const } : q);
+    handleUpdateQuotes(updatedQuotes);
+
+    // 2. Create transaction
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const now = new Date();
+
+    const newTransaction: Transaction = {
+      id: `trans-quote-${quote.id}`,
+      description: `Serviço: Orçamento #${quote.id.slice(-4)}`,
+      amount: quote.total,
+      type: 'income',
+      date: now.toISOString().split('T')[0],
+      month: monthNames[now.getMonth()],
+      category: 'Vendas',
+      clientId: quote.clientId
+    };
+
+    handleUpdateTransactions([newTransaction, ...transactions]);
+
+    // 3. Notify
+    const notification: NotificationItem = {
+      id: `notif-quote-${quote.id}`,
+      title: 'Orçamento Aprovado!',
+      message: `A venda para ${quote.clientName} (R$ ${quote.total.toLocaleString()}) foi registrada no financeiro.`,
+      page: Page.FINANCE
+    };
+    setCurrentToast(notification);
   };
 
   const handleNotificationClick = (notification: NotificationItem) => {
@@ -224,7 +268,12 @@ const App: React.FC = () => {
       case Page.CLIENTS:
         return <ClientsScreen clients={clients} setClients={handleUpdateClients} transactions={transactions} onUpdateTransactions={handleUpdateTransactions} />;
       case Page.SALES:
-        return <SalesScreen clients={clients} />;
+        return <SalesScreen
+          clients={clients}
+          quotes={quotes}
+          onUpdateQuotes={handleUpdateQuotes}
+          onApproveQuote={handleApproveQuote}
+        />;
       default:
         return <DashboardScreen transactions={transactions} />;
     }
