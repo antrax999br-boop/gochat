@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Page, User, CalendarEvent, NotificationItem, Transaction, Client, Quote } from './types';
+import { Page, User, CalendarEvent, NotificationItem, Transaction, Client, Quote, Service } from './types';
 import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import ConnectScreen from './screens/ConnectScreen';
@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
 
   useEffect(() => {
     // 1. Initial Supabase Session Check
@@ -92,10 +93,17 @@ const App: React.FC = () => {
       setClients(JSON.parse(savedClients));
     }
 
-    // Load quotes
-    const savedQuotes = localStorage.getItem('schumacher_quotes');
-    if (savedQuotes) {
-      setQuotes(JSON.parse(savedQuotes));
+    // Load services
+    const savedServices = localStorage.getItem('schumacher_services');
+    if (savedServices) {
+      setServices(JSON.parse(savedServices));
+    } else {
+      setServices([
+        { id: '1', name: 'Limpeza Caixa D\'água', price: 250 },
+        { id: '2', name: 'Limpeza Estofados', price: 180 },
+        { id: '3', name: 'Limpeza Casas', price: 350 },
+        { id: '4', name: 'Segurança de Portaria', price: 1200 },
+      ]);
     }
 
     return () => subscription.unsubscribe();
@@ -114,6 +122,11 @@ const App: React.FC = () => {
   const handleUpdateQuotes = (newQuotes: Quote[]) => {
     setQuotes(newQuotes);
     localStorage.setItem('schumacher_quotes', JSON.stringify(newQuotes));
+  };
+
+  const handleUpdateServices = (newServices: Service[]) => {
+    setServices(newServices);
+    localStorage.setItem('schumacher_services', JSON.stringify(newServices));
   };
 
   const handleApproveQuote = (quote: Quote) => {
@@ -271,8 +284,10 @@ const App: React.FC = () => {
         return <SalesScreen
           clients={clients}
           quotes={quotes}
+          services={services}
           onUpdateQuotes={handleUpdateQuotes}
           onApproveQuote={handleApproveQuote}
+          onUpdateServices={handleUpdateServices}
         />;
       default:
         return <DashboardScreen transactions={transactions} />;

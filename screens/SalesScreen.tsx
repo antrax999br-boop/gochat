@@ -24,21 +24,14 @@ import {
 interface SalesScreenProps {
     clients: Client[];
     quotes: Quote[];
+    services: Service[];
     onUpdateQuotes: (quotes: Quote[]) => void;
     onApproveQuote: (quote: Quote) => void;
+    onUpdateServices: (services: Service[]) => void;
 }
 
-const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuotes, onApproveQuote }) => {
-    const [services, setServices] = useState<Service[]>(() => {
-        const saved = localStorage.getItem('schumacher_services');
-        if (saved) return JSON.parse(saved);
-        return [
-            { id: '1', name: 'Limpeza Caixa D\'água', price: 250 },
-            { id: '2', name: 'Limpeza Estofados', price: 180 },
-            { id: '3', name: 'Limpeza Casas', price: 350 },
-            { id: '4', name: 'Segurança de Portaria', price: 1200 },
-        ];
-    });
+const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, onUpdateQuotes, onApproveQuote, onUpdateServices }) => {
+
 
     const [showQuoteModal, setShowQuoteModal] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
@@ -53,10 +46,6 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
     const [editingService, setEditingService] = useState<Service | null>(null);
     const [newServiceName, setNewServiceName] = useState('');
     const [newServicePrice, setNewServicePrice] = useState('');
-
-    useEffect(() => {
-        localStorage.setItem('schumacher_services', JSON.stringify(services));
-    }, [services]);
 
     const handleAddServiceToQuote = (service: Service) => {
         const existing = currentQuoteItems.find(item => item.serviceId === service.id);
@@ -118,7 +107,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
         if (!newServiceName || !newServicePrice) return;
 
         if (editingService) {
-            setServices(services.map(s => s.id === editingService.id ? {
+            onUpdateServices(services.map(s => s.id === editingService.id ? {
                 ...s,
                 name: newServiceName,
                 price: parseFloat(newServicePrice)
@@ -130,7 +119,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
                 name: newServiceName,
                 price: parseFloat(newServicePrice)
             };
-            setServices([...services, ns]);
+            onUpdateServices([...services, ns]);
             handleAddServiceToQuote(ns);
         }
 
@@ -150,7 +139,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
     const handleDeleteService = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (window.confirm('Excluir este serviço do catálogo?')) {
-            setServices(services.filter(s => s.id !== id));
+            onUpdateServices(services.filter(s => s.id !== id));
         }
     };
 
