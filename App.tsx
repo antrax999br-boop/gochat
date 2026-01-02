@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>([]);
 
   useEffect(() => {
+    console.log("App Schumacher v1.1 - Supabase Sync Active");
     // 1. Initial Supabase Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {

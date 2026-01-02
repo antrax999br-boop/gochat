@@ -39,7 +39,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
             <Zap className="w-5 h-5 text-white fill-current" />
           </div>
           <div className="flex flex-col">
-            <span className="font-extrabold text-xl tracking-tight text-slate-900 dark:text-white leading-none">Schumacher</span>
+            <span className="font-extrabold text-xl tracking-tight text-slate-900 dark:text-white leading-none flex items-center gap-2">
+              Schumacher
+              <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 text-[8px] rounded-md border border-emerald-500/20">v1.1</span>
+            </span>
             <span className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-widest mt-0.5">Tecnologia Ltda.</span>
           </div>
         </div>
