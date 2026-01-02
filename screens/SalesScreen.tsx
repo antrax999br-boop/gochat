@@ -16,7 +16,9 @@ import {
     CheckCircle2,
     Clock,
     User,
-    Check
+    Check,
+    Pencil,
+    Minus
 } from 'lucide-react';
 
 interface SalesScreenProps {
@@ -40,6 +42,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
 
     const [showQuoteModal, setShowQuoteModal] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+    const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
     const [selectedClientId, setSelectedClientId] = useState('');
     const [currentQuoteItems, setCurrentQuoteItems] = useState<QuoteItem[]>([]);
     const [discountPercent, setDiscountPercent] = useState(0);
@@ -47,6 +50,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
 
     // New Service Form State
     const [showServiceForm, setShowServiceForm] = useState(false);
+    const [editingService, setEditingService] = useState<Service | null>(null);
     const [newServiceName, setNewServiceName] = useState('');
     const [newServicePrice, setNewServicePrice] = useState('');
 
@@ -78,6 +82,25 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
         setCurrentQuoteItems(currentQuoteItems.filter((_, i) => i !== index));
     };
 
+    const updateItemQuantity = (index: number, delta: number) => {
+        setCurrentQuoteItems(currentQuoteItems.map((item, i) => {
+            if (i === index) {
+                const newQty = Math.max(1, item.quantity + delta);
+                return { ...item, quantity: newQty, total: newQty * item.unitPrice };
+            }
+            return item;
+        }));
+    };
+
+    const updateItemPrice = (index: number, newPrice: number) => {
+        setCurrentQuoteItems(currentQuoteItems.map((item, i) => {
+            if (i === index) {
+                return { ...item, unitPrice: newPrice, total: item.quantity * newPrice };
+            }
+            return item;
+        }));
+    };
+
     const subtotal = useMemo(() => {
         return currentQuoteItems.reduce((acc, item) => acc + item.total, 0);
     }, [currentQuoteItems]);
@@ -93,16 +116,42 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
     const handleCreateService = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newServiceName || !newServicePrice) return;
-        const ns: Service = {
-            id: Date.now().toString(),
-            name: newServiceName,
-            price: parseFloat(newServicePrice)
-        };
-        setServices([...services, ns]);
-        handleAddServiceToQuote(ns);
+
+        if (editingService) {
+            setServices(services.map(s => s.id === editingService.id ? {
+                ...s,
+                name: newServiceName,
+                price: parseFloat(newServicePrice)
+            } : s));
+            setEditingService(null);
+        } else {
+            const ns: Service = {
+                id: Date.now().toString(),
+                name: newServiceName,
+                price: parseFloat(newServicePrice)
+            };
+            setServices([...services, ns]);
+            handleAddServiceToQuote(ns);
+        }
+
         setNewServiceName('');
         setNewServicePrice('');
         setShowServiceForm(false);
+    };
+
+    const startEditingService = (service: Service, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditingService(service);
+        setNewServiceName(service.name);
+        setNewServicePrice(service.price.toString());
+        setShowServiceForm(true);
+    };
+
+    const handleDeleteService = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (window.confirm('Excluir este serviço do catálogo?')) {
+            setServices(services.filter(s => s.id !== id));
+        }
     };
 
     const handleSaveQuote = () => {
@@ -114,8 +163,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) return;
 
-        const newQuote: Quote = {
-            id: Date.now().toString(),
+        const quoteData = {
             clientId: selectedClientId,
             clientName: client.companyName,
             items: [...currentQuoteItems],
@@ -123,13 +171,31 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
             discountPercentage: discountPercent,
             discountAmount,
             total,
-            status: 'draft',
-            date: new Date().toISOString()
+            status: editingQuoteId ? quotes.find(q => q.id === editingQuoteId)?.status || 'draft' : 'draft' as const,
+            date: editingQuoteId ? quotes.find(q => q.id === editingQuoteId)?.date || new Date().toISOString() : new Date().toISOString()
         };
 
-        onUpdateQuotes([newQuote, ...quotes]);
+        if (editingQuoteId) {
+            onUpdateQuotes(quotes.map(q => q.id === editingQuoteId ? { ...quoteData, id: editingQuoteId } : q));
+        } else {
+            const newQuote: Quote = {
+                ...quoteData,
+                id: Date.now().toString(),
+            };
+            onUpdateQuotes([newQuote, ...quotes]);
+        }
+
         setShowQuoteModal(false);
         resetForm();
+    };
+
+    const handleEditQuote = (quote: Quote) => {
+        setEditingQuoteId(quote.id);
+        setSelectedClientId(quote.clientId);
+        setCurrentQuoteItems(quote.items);
+        setDiscountPercent(quote.discountPercentage);
+        setSelectedQuote(null);
+        setShowQuoteModal(true);
     };
 
     const handleDeleteQuote = (id: string) => {
@@ -150,6 +216,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
         setSelectedClientId('');
         setCurrentQuoteItems([]);
         setDiscountPercent(0);
+        setEditingQuoteId(null);
     };
 
     const filteredQuotes = useMemo(() => {
@@ -302,6 +369,12 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
                             >
                                 <Trash2 className="w-5 h-5" /> Excluir
                             </button>
+                            <button
+                                onClick={() => handleEditQuote(selectedQuote)}
+                                className="px-6 py-4 text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 rounded-2xl font-bold transition-all flex items-center gap-2"
+                            >
+                                <Pencil className="w-5 h-5" /> Editar Itens
+                            </button>
                             <div className="flex-1"></div>
                             {selectedQuote.status !== 'approved' && (
                                 <button
@@ -337,7 +410,9 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
 
                             {showServiceForm ? (
                                 <form onSubmit={handleCreateService} className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 animate-in slide-in-from-top-2">
-                                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">Cadastrar Serviço na Hora</h3>
+                                    <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                        {editingService ? 'Editar Serviço' : 'Cadastrar Serviço na Hora'}
+                                    </h3>
                                     <div className="space-y-4">
                                         <div>
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Nome do Serviço</label>
@@ -360,22 +435,47 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
                                             />
                                         </div>
                                         <div className="flex gap-2 pt-2">
-                                            <button type="button" onClick={() => setShowServiceForm(false)} className="flex-1 py-3 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Voltar</button>
-                                            <button type="submit" className="flex-1 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold rounded-xl shadow-lg transition-transform active:scale-95">Adicionar e Usar</button>
+                                            <button type="button" onClick={() => {
+                                                setShowServiceForm(false);
+                                                setEditingService(null);
+                                                setNewServiceName('');
+                                                setNewServicePrice('');
+                                            }} className="flex-1 py-3 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Voltar</button>
+                                            <button type="submit" className="flex-1 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold rounded-xl shadow-lg transition-transform active:scale-95">
+                                                {editingService ? 'Salvar Alterações' : 'Adicionar e Usar'}
+                                            </button>
                                         </div>
                                     </div>
                                 </form>
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {services.map(service => (
-                                        <button
+                                        <div
                                             key={service.id}
                                             onClick={() => handleAddServiceToQuote(service)}
-                                            className="text-left p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-emerald-500 group transition-all"
+                                            className="text-left p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-emerald-500 group transition-all cursor-pointer relative"
                                         >
-                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-emerald-500">{service.name}</p>
-                                            <p className="text-xs text-slate-400 mt-1">R$ {service.price.toLocaleString()}</p>
-                                        </button>
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-emerald-500">{service.name}</p>
+                                                    <p className="text-xs text-slate-400 mt-1">R$ {service.price.toLocaleString()}</p>
+                                                </div>
+                                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={(e) => startEditingService(service, e)}
+                                                        className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-md"
+                                                    >
+                                                        <Pencil className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDeleteService(service.id, e)}
+                                                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-md"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             )}
@@ -387,7 +487,9 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
                                 <X className="w-5 h-5" />
                             </button>
 
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Resumo</h2>
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">
+                                {editingQuoteId ? 'Editar Orçamento' : 'Resumo do Orçamento'}
+                            </h2>
 
                             <div className="space-y-4 flex-1 overflow-y-auto min-h-0 mb-6 pr-2">
                                 <div className="space-y-1">
@@ -410,18 +512,46 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
                                             <p className="text-xs text-slate-400 font-medium">Nenhum serviço selecionado</p>
                                         </div>
                                     ) : (
-                                        <div className="space-y-2">
+                                        <div className="space-y-3">
                                             {currentQuoteItems.map((item, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl group animate-in slide-in-from-right-2">
-                                                    <div>
+                                                <div key={i} className="p-4 bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-xl animate-in slide-in-from-right-2">
+                                                    <div className="flex items-center justify-between mb-3">
                                                         <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{item.serviceName}</p>
-                                                        <p className="text-[10px] text-slate-400">R$ {item.unitPrice.toLocaleString()}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="text-xs font-black text-slate-900 dark:text-white">R$ {item.total.toLocaleString()}</span>
-                                                        <button onClick={() => removeItemFromQuote(i)} className="p-1 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        <button onClick={() => removeItemFromQuote(i)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                                                            <Trash2 className="w-4 h-4" />
                                                         </button>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between gap-4">
+                                                        <div className="flex items-center bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                                            <button
+                                                                onClick={() => updateItemQuantity(i, -1)}
+                                                                className="p-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500"
+                                                            >
+                                                                <Minus className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <span className="w-8 text-center text-xs font-black dark:text-white">{item.quantity}</span>
+                                                            <button
+                                                                onClick={() => updateItemQuantity(i, 1)}
+                                                                className="p-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500"
+                                                            >
+                                                                <Plus className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+
+                                                        <div className="flex-1 flex items-center gap-2">
+                                                            <span className="text-[10px] font-bold text-slate-400">R$</span>
+                                                            <input
+                                                                type="number"
+                                                                value={item.unitPrice}
+                                                                onChange={(e) => updateItemPrice(i, parseFloat(e.target.value) || 0)}
+                                                                className="w-full bg-transparent border-none p-0 text-xs font-bold text-slate-600 dark:text-slate-400 focus:ring-0 outline-none"
+                                                            />
+                                                        </div>
+
+                                                        <div className="text-right">
+                                                            <p className="text-xs font-black text-emerald-600">R$ {item.total.toLocaleString()}</p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -462,7 +592,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, onUpdateQuot
                                     onClick={handleSaveQuote}
                                     className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 mt-4"
                                 >
-                                    <Save className="w-5 h-5" /> Salvar Orçamento
+                                    <Save className="w-5 h-5" /> {editingQuoteId ? 'Atualizar Orçamento' : 'Salvar Orçamento'}
                                 </button>
                             </div>
                         </div>
