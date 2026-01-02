@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Page, User, NotificationItem } from '../../types';
+import { Page, User, NotificationItem } from '../types';
 import { Bell, Moon, Sun, ChevronRight, User as UserIcon, LogOut } from 'lucide-react';
 
 interface HeaderProps {

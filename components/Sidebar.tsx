@@ -1,5 +1,5 @@
 import React from 'react';
-import { Page } from '../../types';
+import { Page } from '../types';
 import {
   LayoutDashboard,
   QrCode,

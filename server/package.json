@@ -1,0 +1,16 @@
+{
+    "name": "vitta-backend",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "@whiskeysockets/baileys": "^6.7.9",
+        "express": "^4.21.2",
+        "qrcode": "^1.5.4",
+        "socket.io": "^4.8.1",
+        "pino": "^9.6.0",
+        "cors": "^2.8.5"
+    }
+}

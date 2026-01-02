@@ -1,5 +1,5 @@
 import React from 'react';
-import { Page, User, NotificationItem } from '../../types';
+import { Page, User, NotificationItem } from '../types';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
