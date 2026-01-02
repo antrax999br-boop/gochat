@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Client, Transaction } from '../types';
+import { supabase } from '../lib/supabase';
 import {
     Users,
     Search,
@@ -43,35 +44,42 @@ const ClientsScreen: React.FC<ClientsScreenProps> = ({ clients, setClients, tran
 
 
     // --- Client Management ---
-    const handleSaveClient = (e: React.FormEvent) => {
+    const handleSaveClient = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!clientForm.companyName || !clientForm.cnpj) {
             alert('Nome da empresa e CNPJ são obrigatórios!');
             return;
         }
 
-        if (editingClientId) {
-            setClients(clients.map(c => c.id === editingClientId ? { ...c, ...clientForm } as Client : c));
-        } else {
-            const newClient: Client = {
-                id: Date.now().toString(),
-                createdAt: new Date().toISOString(),
-                companyName: clientForm.companyName!,
-                cnpj: clientForm.cnpj!,
-                contactName: clientForm.contactName || '',
-                contactPhone: clientForm.contactPhone || '',
+        try {
+            const dataToSave = {
+                company_name: clientForm.companyName,
+                cnpj: clientForm.cnpj,
+                contact_name: clientForm.contactName || '',
+                contact_phone: clientForm.contactPhone || '',
                 address: clientForm.address || '',
                 email: clientForm.email || ''
             };
-            setClients([newClient, ...clients]);
+
+            if (editingClientId) {
+                await supabase.from('clients').update(dataToSave).eq('id', editingClientId);
+            } else {
+                await supabase.from('clients').insert(dataToSave);
+            }
+
+            setClients([]); // Refresh via App.tsx if possible, but let's just trigger update
+            await setClients(clients); // This is just to satisfy the prop, App.tsx should fetch
+            closeClientModal();
+        } catch (error) {
+            console.error('Error saving client:', error);
+            alert('Erro ao salvar cliente.');
         }
-        closeClientModal();
     };
 
-    const handleDeleteClient = (id: string) => {
+    const handleDeleteClient = async (id: string) => {
         if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
+            await supabase.from('clients').delete().eq('id', id);
             setClients(clients.filter(c => c.id !== id));
-            // Optional: prevent deleting transactions or delete them too? Keeping them safe for now.
         }
     };
 
@@ -101,31 +109,35 @@ const ClientsScreen: React.FC<ClientsScreenProps> = ({ clients, setClients, tran
         setSelectedClient(null);
     };
 
-    const handleAddTransaction = (e: React.FormEvent) => {
+    const handleAddTransaction = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedClient || !transactionDescription || !transactionAmount) return;
 
         const date = new Date();
         const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-        const newTransaction: Transaction = {
-            id: Date.now().toString(),
-            description: transactionDescription,
-            amount: parseFloat(transactionAmount),
-            type: transactionType,
-            date: date.toISOString().split('T')[0],
-            month: monthNames[date.getMonth()],
-            category: 'Serviços ao Cliente',
-            clientId: selectedClient.id
-        };
+        try {
+            await supabase.from('transactions').insert({
+                description: transactionDescription,
+                amount: parseFloat(transactionAmount),
+                type: transactionType,
+                date: date.toISOString().split('T')[0],
+                month: monthNames[date.getMonth()],
+                category: 'Serviços ao Cliente',
+                client_id: selectedClient.id
+            });
 
-        onUpdateTransactions([newTransaction, ...transactions]);
-        setTransactionDescription('');
-        setTransactionAmount('');
+            onUpdateTransactions([]); // Trigger refresh
+            setTransactionDescription('');
+            setTransactionAmount('');
+        } catch (error) {
+            console.error('Error adding transaction:', error);
+        }
     };
 
-    const handleDeleteTransaction = (id: string) => {
+    const handleDeleteTransaction = async (id: string) => {
         if (window.confirm('Excluir esta transação?')) {
+            await supabase.from('transactions').delete().eq('id', id);
             onUpdateTransactions(transactions.filter(t => t.id !== id));
         }
     };

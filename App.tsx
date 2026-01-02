@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Page, User, CalendarEvent, NotificationItem, Transaction, Client, Quote, Service } from './types';
+import { Page, User, CalendarEvent, NotificationItem, Transaction, Client, Quote, Service, ExpenseItem } from './types';
 import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import ConnectScreen from './screens/ConnectScreen';
@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>([]);
 
   useEffect(() => {
     // 1. Initial Supabase Session Check
@@ -44,6 +45,7 @@ const App: React.FC = () => {
           username: session.user.user_metadata.display_name || session.user.email?.split('@')[0] || 'User',
           email: session.user.email || '',
         });
+        fetchAllData();
       }
     });
 
@@ -54,8 +56,10 @@ const App: React.FC = () => {
           username: session.user.user_metadata.display_name || session.user.email?.split('@')[0] || 'User',
           email: session.user.email || '',
         });
+        fetchAllData();
       } else {
         setUser(null);
+        clearAllData();
       }
     });
 
@@ -71,87 +75,175 @@ const App: React.FC = () => {
       setViewedNotifications(JSON.parse(savedViewed));
     }
 
-    // Load events
-    const savedEvents = localStorage.getItem('schumacher_events');
-    if (savedEvents) {
-      const parsedEvents: CalendarEvent[] = JSON.parse(savedEvents);
-      setEvents(parsedEvents);
-      checkNotifications(parsedEvents);
-    }
-
-    // Load transactions
-    const savedTrans = localStorage.getItem('schumacher_finance_transactions');
-    if (savedTrans) {
-      setTransactions(JSON.parse(savedTrans));
-    } else {
-      setTransactions(initialTransactions);
-    }
-
-    // Load clients
-    const savedClients = localStorage.getItem('schumacher_clients');
-    if (savedClients) {
-      setClients(JSON.parse(savedClients));
-    }
-
-    // Load services
-    const savedServices = localStorage.getItem('schumacher_services');
-    if (savedServices) {
-      setServices(JSON.parse(savedServices));
-    } else {
-      setServices([
-        { id: '1', name: 'Limpeza Caixa D\'água', price: 250 },
-        { id: '2', name: 'Limpeza Estofados', price: 180 },
-        { id: '3', name: 'Limpeza Casas', price: 350 },
-        { id: '4', name: 'Segurança de Portaria', price: 1200 },
-      ]);
-    }
-
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleUpdateTransactions = (newTransactions: Transaction[]) => {
-    setTransactions(newTransactions);
-    localStorage.setItem('schumacher_finance_transactions', JSON.stringify(newTransactions));
+  const fetchAllData = async () => {
+    try {
+      // Fetch Clients
+      const { data: clientsData } = await supabase.from('clients').select('*').order('company_name');
+      if (clientsData) {
+        setClients(clientsData.map(c => ({
+          id: c.id,
+          cnpj: c.cnpj,
+          companyName: c.company_name,
+          contactName: c.contact_name,
+          contactPhone: c.contact_phone,
+          address: c.address,
+          email: c.email,
+          createdAt: c.created_at
+        })));
+      }
+
+      // Fetch Services
+      const { data: servicesData } = await supabase.from('services').select('*').order('name');
+      if (servicesData) {
+        setServices(servicesData);
+      }
+
+      // Fetch Transactions
+      const { data: transData } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+      if (transData) {
+        setTransactions(transData.map(t => ({
+          id: t.id,
+          description: t.description,
+          amount: Number(t.amount),
+          type: t.type,
+          date: t.date,
+          month: t.month,
+          category: t.category,
+          clientId: t.client_id
+        })));
+      }
+
+      // Fetch Quotes with Items
+      const { data: quotesData } = await supabase.from('quotes').select(`
+        *,
+        items:quote_items(*)
+      `).order('date', { ascending: false });
+
+      if (quotesData) {
+        const mappedQuotes = quotesData.map(q => ({
+          id: q.id,
+          clientId: q.client_id,
+          clientName: clientsData?.find(c => c.id === q.client_id)?.company_name || 'Desconhecido',
+          items: q.items.map((i: any) => ({
+            serviceId: i.service_id,
+            serviceName: i.service_name,
+            quantity: i.quantity,
+            unitPrice: Number(i.unit_price),
+            total: Number(i.total)
+          })),
+          subtotal: Number(q.subtotal),
+          discountPercentage: Number(q.discount_percentage),
+          discountAmount: Number(q.discount_amount),
+          total: Number(q.total),
+          status: q.status,
+          date: q.date
+        }));
+        setQuotes(mappedQuotes);
+      }
+      // Fetch Expense Structure
+      const { data: expData } = await supabase.from('expense_structure').select('*').order('created_at');
+      if (expData) {
+        setExpenseItems(expData.map(e => ({
+          id: e.id,
+          description: e.description,
+          type: e.type,
+          value: Number(e.value)
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
   };
 
-  const handleUpdateClients = (newClients: Client[]) => {
-    setClients(newClients);
-    localStorage.setItem('schumacher_clients', JSON.stringify(newClients));
+  const clearAllData = () => {
+    setClients([]);
+    setServices([]);
+    setTransactions([]);
+    setQuotes([]);
+    setExpenseItems([]);
   };
 
-  const handleUpdateQuotes = (newQuotes: Quote[]) => {
-    setQuotes(newQuotes);
-    localStorage.setItem('schumacher_quotes', JSON.stringify(newQuotes));
+  const handleUpdateTransactions = async (newTransactions: Transaction[]) => {
+    // If length changed, it might be a delete or add
+    // Screens handle their own inserts now, so let's check for deletion here
+    if (newTransactions.length < transactions.length) {
+      const deletedId = transactions.find(t => !newTransactions.find(nt => nt.id === t.id))?.id;
+      if (deletedId) {
+        await supabase.from('transactions').delete().eq('id', deletedId);
+      }
+    }
+    await fetchAllData();
   };
 
-  const handleUpdateServices = (newServices: Service[]) => {
-    setServices(newServices);
-    localStorage.setItem('schumacher_services', JSON.stringify(newServices));
+  const handleUpdateClients = async (newClients: Client[]) => {
+    // Simplified: in a real app we'd do individual updates, 
+    // but for now let's just refresh after any change on client screen
+    await fetchAllData();
   };
 
-  const handleApproveQuote = (quote: Quote) => {
-    // 1. Mark quote as approved
-    const updatedQuotes = quotes.map(q => q.id === quote.id ? { ...q, status: 'approved' as const } : q);
-    handleUpdateQuotes(updatedQuotes);
+  const handleUpdateQuotes = async (newQuotes: Quote[]) => {
+    // If the change was a deletion (length decreased)
+    if (newQuotes.length < quotes.length) {
+      const deletedId = quotes.find(q => !newQuotes.find(nq => nq.id === q.id))?.id;
+      if (deletedId) {
+        await supabase.from('quotes').delete().eq('id', deletedId);
+      }
+    }
+    await fetchAllData();
+  };
+
+  const handleUpdateServices = async (newServices: Service[]) => {
+    // Check for deletions
+    const { data: currentDbServices } = await supabase.from('services').select('id');
+    if (currentDbServices) {
+      const currentDbIds = currentDbServices.map(s => s.id);
+      const newIds = newServices.map(s => s.id);
+      const toDelete = currentDbIds.filter(id => !newIds.includes(id));
+
+      for (const id of toDelete) {
+        await supabase.from('services').delete().eq('id', id);
+      }
+    }
+
+    // Update/Insert others
+    for (const s of newServices) {
+      const isNew = s.id.length < 10 || isNaN(Date.parse(s.id)) && !s.id.includes('-'); // Rough check for non-UUID
+      // Better check: if it doesn't look like a UUID, it's new
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id);
+
+      if (isUuid) {
+        await supabase.from('services').update({ name: s.name, price: s.price }).eq('id', s.id);
+      } else {
+        await supabase.from('services').insert({ name: s.name, price: s.price });
+      }
+    }
+    await fetchAllData();
+  };
+
+  const handleApproveQuote = async (quote: Quote) => {
+    // 1. Mark quote as approved in database
+    await supabase.from('quotes').update({ status: 'approved' }).eq('id', quote.id);
 
     // 2. Create transaction
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const now = new Date();
 
-    const newTransaction: Transaction = {
-      id: `trans-quote-${quote.id}`,
+    await supabase.from('transactions').insert({
       description: `Serviço: Orçamento #${quote.id.slice(-4)}`,
       amount: quote.total,
       type: 'income',
       date: now.toISOString().split('T')[0],
       month: monthNames[now.getMonth()],
       category: 'Vendas',
-      clientId: quote.clientId
-    };
+      client_id: quote.clientId
+    });
 
-    handleUpdateTransactions([newTransaction, ...transactions]);
+    // 3. Refresh and Notify
+    await fetchAllData();
 
-    // 3. Notify
     const notification: NotificationItem = {
       id: `notif-quote-${quote.id}`,
       title: 'Orçamento Aprovado!',
@@ -268,7 +360,7 @@ const App: React.FC = () => {
       case Page.SETTINGS:
         return <SettingsScreen />;
       case Page.FINANCE:
-        return <FinanceScreen transactions={transactions} onUpdateTransactions={handleUpdateTransactions} />;
+        return <FinanceScreen transactions={transactions} onUpdateTransactions={handleUpdateTransactions} fetchAllData={fetchAllData} />;
       case Page.CALENDAR:
         return <CalendarScreen
           events={events}
@@ -277,7 +369,7 @@ const App: React.FC = () => {
           onDeleteEvent={handleDeleteEvent}
         />;
       case Page.EXPENSES:
-        return <ExpenseStructureScreen />;
+        return <ExpenseStructureScreen items={expenseItems} setItems={setExpenseItems} fetchAllData={fetchAllData} />;
       case Page.CLIENTS:
         return <ClientsScreen clients={clients} setClients={handleUpdateClients} transactions={transactions} onUpdateTransactions={handleUpdateTransactions} />;
       case Page.SALES:

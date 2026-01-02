@@ -43,9 +43,10 @@ const initialTransactions: Transaction[] = [
 interface FinanceScreenProps {
   transactions: Transaction[];
   onUpdateTransactions: (t: Transaction[]) => void;
+  fetchAllData: () => Promise<void>;
 }
 
-const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTransactions }) => {
+const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTransactions, fetchAllData }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'income' | 'expense'>('income');
@@ -143,7 +144,7 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
     }
   };
 
-  const handleAddTransaction = (e: React.FormEvent) => {
+  const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !amount) return;
 
@@ -157,7 +158,8 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
       category
     };
 
-    onUpdateTransactions([newTransaction, ...transactions]);
+    onUpdateTransactions([]); // Refresh via App.tsx
+    await fetchAllData();
     setDescription('');
     setAmount('');
   };

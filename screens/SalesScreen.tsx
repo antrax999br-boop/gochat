@@ -1,5 +1,7 @@
+// Version: 1.1.0 - Migration to Supabase
 import React, { useState, useMemo, useEffect } from 'react';
 import { Client, Quote, Service, QuoteItem } from '../types';
+import { supabase } from '../lib/supabase';
 import {
     ShoppingCart,
     Plus,
@@ -143,7 +145,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         }
     };
 
-    const handleSaveQuote = () => {
+    const handleSaveQuote = async () => {
         if (!selectedClientId || currentQuoteItems.length === 0) {
             alert('Selecione um cliente e adicione pelo menos um serviço.');
             return;
@@ -152,30 +154,49 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) return;
 
-        const quoteData = {
-            clientId: selectedClientId,
-            clientName: client.companyName,
-            items: [...currentQuoteItems],
-            subtotal,
-            discountPercentage: discountPercent,
-            discountAmount,
-            total,
-            status: editingQuoteId ? quotes.find(q => q.id === editingQuoteId)?.status || 'draft' : 'draft' as const,
-            date: editingQuoteId ? quotes.find(q => q.id === editingQuoteId)?.date || new Date().toISOString() : new Date().toISOString()
-        };
-
-        if (editingQuoteId) {
-            onUpdateQuotes(quotes.map(q => q.id === editingQuoteId ? { ...quoteData, id: editingQuoteId } : q));
-        } else {
-            const newQuote: Quote = {
-                ...quoteData,
-                id: Date.now().toString(),
+        try {
+            const quoteData = {
+                client_id: selectedClientId,
+                subtotal,
+                discount_percentage: discountPercent,
+                discount_amount: discountAmount,
+                total,
+                status: editingQuoteId ? quotes.find(q => q.id === editingQuoteId)?.status || 'draft' : 'draft',
+                date: editingQuoteId ? quotes.find(q => q.id === editingQuoteId)?.date || new Date().toISOString() : new Date().toISOString()
             };
-            onUpdateQuotes([newQuote, ...quotes]);
-        }
 
-        setShowQuoteModal(false);
-        resetForm();
+            let quoteId = editingQuoteId;
+
+            if (editingQuoteId) {
+                await supabase.from('quotes').update(quoteData).eq('id', editingQuoteId);
+                // Delete old items to replace them
+                await supabase.from('quote_items').delete().eq('quote_id', editingQuoteId);
+            } else {
+                const { data, error } = await supabase.from('quotes').insert(quoteData).select().single();
+                if (error) throw error;
+                quoteId = data.id;
+            }
+
+            // Insert Items
+            if (quoteId) {
+                const itemsToInsert = currentQuoteItems.map(item => ({
+                    quote_id: quoteId,
+                    service_id: item.serviceId.length > 10 ? item.serviceId : null, // Only UUIDs
+                    service_name: item.serviceName,
+                    quantity: item.quantity,
+                    unit_price: item.unitPrice,
+                    total: item.total
+                }));
+                await supabase.from('quote_items').insert(itemsToInsert);
+            }
+
+            onUpdateQuotes([]); // Trigger refresh in App.tsx
+            setShowQuoteModal(false);
+            resetForm();
+        } catch (error) {
+            console.error('Error saving quote:', error);
+            alert('Erro ao salvar orçamento. Verifique sua conexão.');
+        }
     };
 
     const handleEditQuote = (quote: Quote) => {
@@ -449,16 +470,16 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-emerald-500">{service.name}</p>
                                                     <p className="text-xs text-slate-400 mt-1">R$ {service.price.toLocaleString()}</p>
                                                 </div>
-                                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex gap-1">
                                                     <button
                                                         onClick={(e) => startEditingService(service, e)}
-                                                        className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-md"
+                                                        className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-md transition-colors"
                                                     >
                                                         <Pencil className="w-3.5 h-3.5" />
                                                     </button>
                                                     <button
                                                         onClick={(e) => handleDeleteService(service.id, e)}
-                                                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-md"
+                                                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-md transition-colors"
                                                     >
                                                         <Trash2 className="w-3.5 h-3.5" />
                                                     </button>

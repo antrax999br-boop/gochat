@@ -1,41 +1,72 @@
 import React, { useState, useEffect } from 'react';
 import { ExpenseItem } from '../types';
+import { supabase } from '../lib/supabase';
 import { Plus, Trash2, Save, Download, Calculator, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 
-const ExpenseStructureScreen: React.FC = () => {
-    const [items, setItems] = useState<ExpenseItem[]>(() => {
-        const saved = localStorage.getItem('schumacher_expense_structure');
-        return saved ? JSON.parse(saved) : [
-            { id: '1', description: 'Receita Mensal', type: 'income', value: 0 },
-            { id: '2', description: 'Aluguel', type: 'expense', value: 0 },
-            { id: '3', description: 'Internet', type: 'expense', value: 0 },
-        ];
-    });
+interface ExpenseStructureProps {
+    items: ExpenseItem[];
+    setItems: (items: ExpenseItem[]) => void;
+    fetchAllData: () => Promise<void>;
+}
+
+const ExpenseStructureScreen: React.FC<ExpenseStructureProps> = ({ items, setItems, fetchAllData }) => {
+    const [localItems, setLocalItems] = useState<ExpenseItem[]>(items);
 
     useEffect(() => {
-        localStorage.setItem('schumacher_expense_structure', JSON.stringify(items));
+        setLocalItems(items);
     }, [items]);
 
     const addItem = () => {
         const newItem: ExpenseItem = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: 'temp-' + Date.now(),
             description: 'Novo Item',
             type: 'expense',
             value: 0
         };
-        setItems([...items, newItem]);
+        setLocalItems([...localItems, newItem]);
     };
 
     const updateItem = (id: string, field: keyof ExpenseItem, value: any) => {
-        setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
+        setLocalItems(localItems.map(item => item.id === id ? { ...item, [field]: value } : item));
     };
 
-    const deleteItem = (id: string) => {
-        setItems(items.filter(item => item.id !== id));
+    const deleteItem = async (id: string) => {
+        if (id.startsWith('temp-')) {
+            setLocalItems(localItems.filter(item => item.id !== id));
+            return;
+        }
+
+        if (window.confirm('Excluir este item permanentemente?')) {
+            await supabase.from('expense_structure').delete().eq('id', id);
+            await fetchAllData();
+        }
     };
 
-    const totalIncome = items.filter(i => i.type === 'income').reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
-    const totalExpense = items.filter(i => i.type === 'expense').reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+    const handleSaveAll = async () => {
+        try {
+            for (const item of localItems) {
+                const dataToSave = {
+                    description: item.description,
+                    type: item.type,
+                    value: item.value
+                };
+
+                if (item.id.startsWith('temp-')) {
+                    await supabase.from('expense_structure').insert(dataToSave);
+                } else {
+                    await supabase.from('expense_structure').update(dataToSave).eq('id', item.id);
+                }
+            }
+            await fetchAllData();
+            alert('Dados salvos com sucesso!');
+        } catch (error) {
+            console.error('Error saving structure:', error);
+            alert('Erro ao salvar dados.');
+        }
+    };
+
+    const totalIncome = localItems.filter(i => i.type === 'income').reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+    const totalExpense = localItems.filter(i => i.type === 'expense').reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
     const balance = totalIncome - totalExpense;
 
     return (
@@ -45,12 +76,20 @@ const ExpenseStructureScreen: React.FC = () => {
                     <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">Estrutura de Gastos</h1>
                     <p className="text-slate-500 dark:text-slate-400 mt-1">Planeje e simule seus custos e receitas mensais.</p>
                 </div>
-                <button
-                    onClick={addItem}
-                    className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
-                >
-                    <Plus className="w-5 h-5" /> Adicionar Linha
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={handleSaveAll}
+                        className="flex items-center gap-2 px-6 py-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold shadow-lg transition-all hover:scale-105 active:scale-95"
+                    >
+                        <Save className="w-5 h-5" /> Salvar Tudo
+                    </button>
+                    <button
+                        onClick={addItem}
+                        className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
+                    >
+                        <Plus className="w-5 h-5" /> Adicionar Linha
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -101,7 +140,7 @@ const ExpenseStructureScreen: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {items.map((item, index) => (
+                                {localItems.map((item, index) => (
                                     <tr key={item.id} className="group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                                         <td className="px-6 py-3 font-mono text-xs text-slate-400">
                                             {(index + 1).toString().padStart(2, '0')}
@@ -134,7 +173,7 @@ const ExpenseStructureScreen: React.FC = () => {
                                                 <input
                                                     type="number"
                                                     value={item.value}
-                                                    onChange={(e) => updateItem(item.id, 'value', parseFloat(e.target.value))}
+                                                    onChange={(e) => updateItem(item.id, 'value', parseFloat(e.target.value) || 0)}
                                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-2 pl-8 pr-4 text-sm font-mono font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                                                 />
                                             </div>
@@ -150,7 +189,7 @@ const ExpenseStructureScreen: React.FC = () => {
                                         </td>
                                     </tr>
                                 ))}
-                                {items.length === 0 && (
+                                {localItems.length === 0 && (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm">
                                             Nenhum item adicionado. Clique em "Adicionar Linha" para começar.
