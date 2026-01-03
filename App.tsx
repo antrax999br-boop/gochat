@@ -42,7 +42,6 @@ const App: React.FC = () => {
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [requestedPage, setRequestedPage] = useState<Page | null>(null);
-  const [unlockedPages, setUnlockedPages] = useState<Set<Page>>(new Set());
 
   useEffect(() => {
     console.log("App Schumacher v1.1 - Supabase Sync Active");
@@ -334,7 +333,7 @@ const App: React.FC = () => {
   const CORRECT_PASSWORD = '1601';
 
   const handleNavigate = (page: Page) => {
-    if (PROTECTED_PAGES.includes(page) && !unlockedPages.has(page)) {
+    if (PROTECTED_PAGES.includes(page)) {
       setRequestedPage(page);
       setIsPasswordProtected(true);
       setPasswordInput('');
@@ -450,7 +449,6 @@ const App: React.FC = () => {
     e.preventDefault();
     if (passwordInput === CORRECT_PASSWORD) {
       if (requestedPage) {
-        setUnlockedPages(prev => new Set(prev).add(requestedPage));
         setActivePage(requestedPage);
       }
       setIsPasswordProtected(false);
