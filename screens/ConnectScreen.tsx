@@ -9,11 +9,10 @@ const ConnectScreen: React.FC = () => {
   const [qrCode, setQrCode] = useState<string>('');
   const [connectionError, setConnectionError] = useState(false);
   const [useSimulation, setUseSimulation] = useState(false);
+  const backendUrl = getBackendUrl();
 
   useEffect(() => {
     if (useSimulation) return;
-
-    const backendUrl = getBackendUrl();
 
     // Function to poll WhatsApp status and QR
     const fetchWhatsAppStatus = async (isFirstRun = false) => {
@@ -137,7 +136,10 @@ const ConnectScreen: React.FC = () => {
                 <div className="flex flex-col items-center gap-4 text-center p-4">
                   <XCircle className="w-12 h-12 text-red-500" />
                   <span className="text-sm font-bold text-slate-900 dark:text-white">Falha ao conectar ao Backend</span>
-                  <p className="text-xs text-slate-500 max-w-[200px] mb-2">Não foi possível iniciar o servidor local. Verifique se o Git está instalado para rodar o backend.</p>
+                  <p className="text-xs text-slate-500 max-w-[200px] mb-2">
+                    Tentando conectar em: <br />
+                    <span className="font-mono bg-slate-100 px-1 rounded">{backendUrl}</span>
+                  </p>
                   <button onClick={activateSimulation} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-emerald-600 font-bold text-xs transition-colors">
                     Usar Modo Simulação
                   </button>
