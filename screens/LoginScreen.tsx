@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { User } from '../types';
-import { Zap, Mail, Lock, User as UserIcon, ArrowRight, Github, Chrome } from 'lucide-react';
+import { Zap, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface LoginScreenProps {
@@ -54,6 +53,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
         if (data.user) {
           onLogin({
+            id: data.user.id,
             username: data.user.user_metadata.display_name || data.user.email?.split('@')[0] || 'User',
             email: data.user.email || '',
           });
@@ -199,19 +199,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               </p>
             </div>
 
-            <div className="relative my-10">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-              <div className="relative flex justify-center text-xs uppercase tracking-widest font-bold text-slate-400 bg-white px-4">Ou continue com</div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button className="flex items-center justify-center gap-3 px-4 py-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all font-bold text-slate-700 text-sm">
-                <Chrome className="w-5 h-5" /> Google
-              </button>
-              <button className="flex items-center justify-center gap-3 px-4 py-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all font-bold text-slate-700 text-sm">
-                <Github className="w-5 h-5" /> GitHub
-              </button>
-            </div>
           </div>
         </div>
       </div>
