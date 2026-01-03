@@ -4,17 +4,18 @@ import { User as AppUser } from '../types';
 import { supabase } from '../lib/supabase';
 import {
   Search,
-  MoreVertical,
   Send,
-  PlusCircle,
-  Smile,
-  Mic,
-  CheckCheck,
-  Check,
   User,
   MessageCircle,
   Users,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  Paperclip,
+  Image as ImageIcon,
+  File as FileIcon,
+  Download,
+  X,
+  Loader2
 } from 'lucide-react';
 
 interface Profile {
@@ -32,6 +33,9 @@ interface ChatMessage {
   content: string;
   created_at: string;
   is_read: boolean;
+  file_url?: string;
+  file_name?: string;
+  file_type?: string;
 }
 
 interface ConversationsScreenProps {
@@ -46,7 +50,9 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'users' | 'groups'>('users');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Refs to maintain stable values for the Realtime closure
   const selectedProfileRef = useRef<Profile | null>(null);
@@ -116,7 +122,6 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
       }, (payload) => {
         const m = payload.new as ChatMessage;
 
-        // Use REFS to get current state without re-subscribing
         const currentTab = activeTabRef.current;
         const currentProfile = selectedProfileRef.current;
 
@@ -133,15 +138,19 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
           });
         }
       })
-      .subscribe((status) => {
-        console.log("Chat sync status:", status);
-      });
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'chat_messages'
+      }, () => {
+        fetchMessages(); // Easy way to handle deletions
+      })
+      .subscribe();
 
     return () => {
-      console.log("Cleaning up Chat Realtime...");
       supabase.removeChannel(channel);
     };
-  }, [currentUser.id]); // Only depends on user, stays alive across tab/profile switches
+  }, [currentUser.id]);
 
   // Auto-scroll
   useEffect(() => {
@@ -150,17 +159,23 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
     }
   }, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (e?: React.FormEvent, fileData?: { url: string, name: string, type: string }) => {
+    if (e) e.preventDefault();
     const text = newMessage.trim();
-    if (!text) return;
+    if (!text && !fileData) return;
 
-    const messageData = {
+    const messageData: any = {
       sender_id: currentUser.id,
       receiver_id: activeTab === 'users' ? selectedProfile?.id : null,
       channel_id: activeTab === 'groups' ? 'general' : 'private',
-      content: text,
+      content: text || (fileData ? `Arquivo: ${fileData.name}` : ''),
     };
+
+    if (fileData) {
+      messageData.file_url = fileData.url;
+      messageData.file_name = fileData.name;
+      messageData.file_type = fileData.type;
+    }
 
     // Optimistic
     const tempId = 'temp-' + Date.now();
@@ -180,6 +195,62 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
       alert('Erro ao enviar.');
     } else if (data) {
       setMessages(prev => prev.map(m => m.id === tempId ? data : m));
+    }
+  };
+
+  const clearConversation = async () => {
+    if (!window.confirm('Deseja limpar todas as mensagens desta conversa? Esta ação não pode ser desfeita.')) return;
+
+    try {
+      let query = supabase.from('chat_messages').delete();
+      if (activeTab === 'users' && selectedProfile) {
+        query = query.or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedProfile.id}),and(sender_id.eq.${selectedProfile.id},receiver_id.eq.${currentUser.id})`);
+      } else {
+        query = query.eq('channel_id', 'general');
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+      setMessages([]);
+    } catch (error) {
+      console.error('Error clearing messages:', error);
+      alert('Erro ao excluir mensagens.');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${currentUser.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-attachments')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-attachments')
+        .getPublicUrl(filePath);
+
+      // Auto send the file after upload
+      await handleSendMessage(undefined, {
+        url: publicUrl,
+        name: file.name,
+        type: file.type
+      });
+
+    } catch (error) {
+      console.error('Error uploading:', error);
+      alert('Erro ao fazer upload do arquivo.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -296,6 +367,13 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                 >
                   <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin text-emerald-500' : ''}`} />
                 </button>
+                <button
+                  onClick={clearConversation}
+                  className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"
+                  title="Limpar Conversa"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
               </div>
             </div>
 
@@ -305,6 +383,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
             >
               {messages.map((msg) => {
                 const isMe = msg.sender_id === currentUser.id;
+                const isImage = msg.file_type?.startsWith('image/');
                 const senderProfile = profiles.find(p => p.id === msg.sender_id);
 
                 return (
@@ -314,8 +393,48 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                         {senderProfile?.username || 'Colega'}
                       </span>
                     )}
-                    <div className={`max-w-[75%] px-5 py-4 rounded-3xl shadow-lg ${isMe ? 'bg-emerald-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none border border-slate-100 dark:border-slate-700'}`}>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    <div className={`max-w-[75%] overflow-hidden rounded-3xl shadow-lg ${isMe ? 'bg-emerald-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none border border-slate-100 dark:border-slate-700'}`}>
+                      {msg.file_url && (
+                        <div className="mb-2">
+                          {isImage ? (
+                            <div className="relative group/img">
+                              <img src={msg.file_url} alt="Attachment" className="max-w-full h-auto block" />
+                              <a
+                                href={msg.file_url}
+                                download={msg.file_name}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                              >
+                                <Download className="w-8 h-8 text-white" />
+                              </a>
+                            </div>
+                          ) : (
+                            <a
+                              href={msg.file_url}
+                              download={msg.file_name}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`flex items-center gap-3 p-4 border-b ${isMe ? 'border-white/20 bg-emerald-600' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900'} hover:opacity-90 transition-all`}
+                            >
+                              <div className="p-2 bg-white/20 rounded-lg">
+                                <FileIcon className="w-6 h-6" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold truncate">{msg.file_name}</p>
+                                <p className="text-[10px] opacity-70 uppercase font-bold">Arquivo</p>
+                              </div>
+                              <Download className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {msg.content && (
+                        <div className="px-5 py-4">
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                        </div>
+                      )}
                     </div>
                     <div className={`flex items-center gap-1.5 mt-2 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
@@ -331,7 +450,21 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
             </div>
 
             <div className="p-6 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
-              <form onSubmit={handleSendMessage} className="flex items-end gap-3 max-w-5xl mx-auto">
+              <form onSubmit={handleSendMessage} className="flex items-end gap-3 max-w-5xl mx-auto relative">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-4 mr-1 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-2xl transition-all"
+                >
+                  {isUploading ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <Paperclip className="w-6 h-6" />}
+                </button>
                 <div className="flex-1">
                   <input
                     type="text"
@@ -343,7 +476,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                 </div>
                 <button
                   type="submit"
-                  disabled={!newMessage.trim()}
+                  disabled={!newMessage.trim() && !isUploading}
                   className="p-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:shadow-none text-white rounded-2xl shadow-xl shadow-emerald-500/20 active:scale-95 transition-all"
                 >
                   <Send className="w-6 h-6" />
