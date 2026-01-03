@@ -42,6 +42,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
     const [currentQuoteItems, setCurrentQuoteItems] = useState<QuoteItem[]>([]);
     const [discountPercent, setDiscountPercent] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sellerName, setSellerName] = useState('');
 
     // New Service Form State
     const [showServiceForm, setShowServiceForm] = useState(false);
@@ -157,6 +158,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         try {
             const quoteData = {
                 client_id: selectedClientId,
+                seller_name: sellerName,
                 subtotal,
                 discount_percentage: discountPercent,
                 discount_amount: discountAmount,
@@ -204,6 +206,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         setSelectedClientId(quote.clientId);
         setCurrentQuoteItems(quote.items);
         setDiscountPercent(quote.discountPercentage);
+        setSellerName(quote.sellerName || '');
         setSelectedQuote(null);
         setShowQuoteModal(true);
     };
@@ -315,10 +318,14 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         setCurrentQuoteItems([]);
         setDiscountPercent(0);
         setEditingQuoteId(null);
+        setSellerName('');
     };
 
     const filteredQuotes = useMemo(() => {
-        return quotes.filter(q => q.clientName.toLowerCase().includes(searchTerm.toLowerCase()));
+        return quotes.filter(q =>
+            q.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (q.sellerName || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
     }, [quotes, searchTerm]);
 
     return (
@@ -365,7 +372,12 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                             </div>
                         </div>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate">{quote.clientName}</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{new Date(quote.date).toLocaleDateString()}</p>
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{new Date(quote.date).toLocaleDateString()}</p>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${quote.sellerName ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>
+                                {quote.sellerName ? `Vendedor: ${quote.sellerName}` : 'Vendedor: N/I'}
+                            </span>
+                        </div>
                         <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
                             <span className="text-xl font-black text-slate-900 dark:text-white">R$ {quote.total.toLocaleString()}</span>
                             <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-emerald-500 transition-colors" />
@@ -431,6 +443,17 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                         <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{selectedQuote.status === 'approved' ? 'Aprovado' : 'Aguardando'}</p>
                                     </div>
                                 </div>
+                                {selectedQuote.sellerName && (
+                                    <div className="col-span-2 p-4 bg-emerald-50 dark:bg-emerald-500/5 rounded-2xl flex items-center gap-3 border border-emerald-100 dark:border-emerald-500/10">
+                                        <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs">
+                                            {selectedQuote.sellerName.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Vendedor Responsável</p>
+                                            <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{selectedQuote.sellerName}</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-4">
@@ -502,20 +525,34 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                            <div className="space-y-3">
-                                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                                    <Building2 className="w-4 h-4 text-emerald-500" /> Cliente Solicitante
-                                </label>
-                                <select
-                                    value={selectedClientId}
-                                    onChange={(e) => setSelectedClientId(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white font-bold"
-                                >
-                                    <option value="">Selecione um cliente cadastrado...</option>
-                                    {clients.map(client => (
-                                        <option key={client.id} value={client.id}>{client.companyName}</option>
-                                    ))}
-                                </select>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                                        <Building2 className="w-4 h-4 text-emerald-500" /> Cliente Solicitante
+                                    </label>
+                                    <select
+                                        value={selectedClientId}
+                                        onChange={(e) => setSelectedClientId(e.target.value)}
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white font-bold"
+                                    >
+                                        <option value="">Selecione um cliente cadastrado...</option>
+                                        {clients.map(client => (
+                                            <option key={client.id} value={client.id}>{client.companyName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                                        <Minus className="w-4 h-4 text-emerald-500" /> Vendedor Responsável
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={sellerName}
+                                        onChange={(e) => setSellerName(e.target.value)}
+                                        placeholder="Nome do vendedor..."
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white font-bold"
+                                    />
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
