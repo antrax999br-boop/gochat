@@ -10,6 +10,7 @@ import pino from 'pino';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
 
 // --- CONFIGURATION ---
 const __filename = fileURLToPath(import.meta.url);
@@ -45,6 +46,10 @@ const io = new Server(server, {
 // --- WHATSAPP SERVICE ---
 async function connectToWhatsApp() {
     console.log(`Iniciando serviço WhatsApp (Sessão: ${AUTH_FOLDER})...`);
+
+    // Ensure auth folder exists
+    try { await fs.mkdir(AUTH_FOLDER, { recursive: true }); } catch { }
+
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
     const { version } = await fetchLatestBaileysVersion();
 
@@ -58,23 +63,55 @@ async function connectToWhatsApp() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', (update) => {
+    sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
+            console.log('--- NOVO QR CODE GERADO ---');
             currentQR = qr;
             currentStatus = 'disconnected';
             io.emit('qr', qr);
+            io.emit('status', 'disconnected');
         }
 
         if (connection === 'close') {
             const statusCode = (lastDisconnect?.error)?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             console.log(`Conexão fechada. Código: ${statusCode}. Reconectando: ${shouldReconnect}`);
+
             currentStatus = 'disconnected';
             currentQR = null;
             io.emit('status', 'disconnected');
-            if (shouldReconnect) setTimeout(connectToWhatsApp, 5000);
+
+            // HANDLE LOGOUT (401)
+            if (statusCode === DisconnectReason.loggedOut) {
+                console.log('Detectado desconexão pelo dispositivo (Logout). Limpando sessão...');
+                try {
+                    // 1. Close internal connection watchers
+                    sock?.end(undefined);
+                    sock = null;
+
+                    // 2. Clear Auth Folder
+                    await fs.rm(AUTH_FOLDER, { recursive: true, force: true });
+                    console.log('Sessão limpa com sucesso.');
+
+                    // 3. Clear Internal State
+                    chats.clear();
+                    messages.clear();
+
+                    // 4. Restart completely to generate new QR
+                    console.log('Reiniciando serviço para gerar novo QR Code...');
+                    setTimeout(connectToWhatsApp, 2000);
+
+                } catch (error) {
+                    console.error('Erro ao limpar sessão:', error);
+                    // Force restart even if delete fails
+                    setTimeout(connectToWhatsApp, 2000);
+                }
+            } else if (shouldReconnect) {
+                // Normal temporary disconnect handling
+                setTimeout(connectToWhatsApp, 5000);
+            }
         } else if (connection === 'open') {
             console.log('--- WHATSAPP CONECTADO COM SUCESSO ---');
             currentStatus = 'connected';
