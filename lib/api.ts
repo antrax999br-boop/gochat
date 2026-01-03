@@ -2,7 +2,7 @@ export const getBackendUrl = (): string => {
 
     // --- URL TÚNEL ESTÁVEL (Sem Senha) ---
     // Atualizado automaticamente para:
-    const tunnelUrl = 'https://f2e44e0640585b.lhr.life';
+    const tunnelUrl = 'https://d39edff651b177.lhr.life';
 
     if (import.meta.env.VITE_BACKEND_URL) {
         return import.meta.env.VITE_BACKEND_URL;
