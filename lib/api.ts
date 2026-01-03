@@ -1,24 +1,32 @@
 export const getBackendUrl = (): string => {
-    // 1. Se houver uma variável de ambiente definida (PRODUÇÃO), usa ela
+    // Se a variável de ambiente estiver definida (cenário ideal de produção configurado)
     if (import.meta.env.VITE_BACKEND_URL) {
         return import.meta.env.VITE_BACKEND_URL;
     }
 
-    // 2. Se estiver rodando no navegador (lado do cliente) em DESENVOLVIMENTO
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
 
-        // Se estiver acessando via localhost, assume backend na 3001
+        // --- INTEGRAÇÃO VERCEL (Produção) ---
+        // Se estiver acessando pelo link do Vercel, devemos apontar para o Tunnel atual do seu PC.
+        // ATENÇÃO: Esta URL muda se você reiniciar o localtunnel
+        if (hostname.includes('vercel.app')) {
+            return 'https://loose-buttons-sniff.loca.lt';
+        }
+
+        // --- INTEGRAÇÃO LOCALTUNNEL (Dev Remoto) ---
+        if (hostname.endsWith('.loca.lt')) {
+            return 'https://loose-buttons-sniff.loca.lt';
+        }
+
+        // --- DEV LOCAL ---
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
             return 'http://localhost:3001';
         }
 
-        // Se estiver acessando via IP de rede (ex: 192.168.1.15), 
-        // assume que o backend está no mesmo IP, porta 3001.
-        // Isso permite testes em outros dispositivos na MESMA rede.
+        // Rede Local
         return `http://${hostname}:3001`;
     }
 
-    // Fallback padrão
     return 'http://localhost:3001';
 };
