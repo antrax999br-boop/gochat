@@ -24,10 +24,11 @@ import { supabase } from '../lib/supabase';
 
 interface EmployeesScreenProps {
     employees: Employee[];
+    setEmployees?: (employees: Employee[]) => void;
     fetchAllData: () => Promise<void>;
 }
 
-const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, fetchAllData }) => {
+const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmployees, fetchAllData }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
     const [employeeForm, setEmployeeForm] = useState<Partial<Employee>>({});
@@ -87,36 +88,77 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, fetchAllDa
                 position: employeeForm.position,
                 hire_date: employeeForm.hireDate,
                 work_schedule: employeeForm.workSchedule,
-                base_salary: employeeForm.baseSalary,
-                additional_percent_20: employeeForm.additionalPercent20,
-                attendance: employeeForm.attendance,
-                meal_voucher: employeeForm.mealVoucher,
-                food_voucher_per_day: employeeForm.foodVoucherPerDay,
-                food_voucher_total: employeeForm.foodVoucherTotal,
-                transport_voucher_per_day: employeeForm.transportVoucherPerDay,
-                transport_voucher_total: employeeForm.transportVoucherTotal,
-                absence_days: employeeForm.absenceDays,
-                absence_total: employeeForm.absenceTotal,
-                fuel: employeeForm.fuel,
-                car_rental: employeeForm.carRental,
-                observations: employeeForm.observations,
+                base_salary: Number(employeeForm.baseSalary) || 0,
+                additional_percent_20: Number(employeeForm.additionalPercent20) || 0,
+                attendance: Number(employeeForm.attendance) || 0,
+                meal_voucher: Number(employeeForm.mealVoucher) || 0,
+                food_voucher_per_day: Number(employeeForm.foodVoucherPerDay) || 0,
+                food_voucher_total: Number(employeeForm.foodVoucherTotal) || 0,
+                transport_voucher_per_day: Number(employeeForm.transportVoucherPerDay) || 0,
+                transport_voucher_total: Number(employeeForm.transportVoucherTotal) || 0,
+                absence_days: Number(employeeForm.absenceDays) || 0,
+                absence_total: Number(employeeForm.absenceTotal) || 0,
+                fuel: Number(employeeForm.fuel) || 0,
+                car_rental: Number(employeeForm.carRental) || 0,
+                observations: employeeForm.observations || '',
                 status: 'active'
             };
 
+            let result;
             if (editingEmployeeId) {
-                await supabase.from('employees').update(dataToSave).eq('id', editingEmployeeId);
+                result = await supabase.from('employees').update(dataToSave).eq('id', editingEmployeeId).select();
             } else {
-                await supabase.from('employees').insert(dataToSave);
+                result = await supabase.from('employees').insert(dataToSave).select();
             }
 
+            if (result.error) {
+                console.error('Supabase Error:', result.error);
+                throw result.error;
+            }
+
+            // Fallback: Optimistic state update if we have setEmployees and result data
+            if (setEmployees && result.data && result.data[0]) {
+                const dbEmp = result.data[0];
+                const mapped: Employee = {
+                    id: dbEmp.id,
+                    costCenter: dbEmp.cost_center || '',
+                    fullName: dbEmp.full_name || '',
+                    position: dbEmp.position || '',
+                    hireDate: dbEmp.hire_date || '',
+                    workSchedule: dbEmp.work_schedule || '',
+                    baseSalary: Number(dbEmp.base_salary) || 0,
+                    additionalPercent20: Number(dbEmp.additional_percent_20) || 0,
+                    attendance: Number(dbEmp.attendance) || 0,
+                    mealVoucher: Number(dbEmp.meal_voucher) || 0,
+                    foodVoucherPerDay: Number(dbEmp.food_voucher_per_day) || 0,
+                    foodVoucherTotal: Number(dbEmp.food_voucher_total) || 0,
+                    transportVoucherPerDay: Number(dbEmp.transport_voucher_per_day) || 0,
+                    transportVoucherTotal: Number(dbEmp.transport_voucher_total) || 0,
+                    absenceDays: Number(dbEmp.absence_days) || 0,
+                    absenceTotal: Number(dbEmp.absence_total) || 0,
+                    fuel: Number(dbEmp.fuel) || 0,
+                    carRental: Number(dbEmp.car_rental) || 0,
+                    observations: dbEmp.observations || '',
+                    status: dbEmp.status || 'active'
+                };
+
+                if (editingEmployeeId) {
+                    setEmployees(employees.map(e => e.id === editingEmployeeId ? mapped : e));
+                } else {
+                    setEmployees([...employees, mapped]);
+                }
+            }
+
+            alert('✅ Funcionário salvo com sucesso!');
+
+            // Re-fetch data and close modal
             await fetchAllData();
             setShowEmployeeModal(false);
             setEmployeeForm({});
             setEditingEmployeeId(null);
-            alert('Funcionário salvo com sucesso!');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving employee:', error);
-            alert('Erro ao salvar funcionário.');
+            alert(`❌ Erro ao salvar: ${error.message || 'Erro desconhecido'}`);
         }
     };
 
@@ -139,11 +181,18 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, fetchAllDa
     };
 
     const filteredEmployees = useMemo(() => {
-        return employees.filter(emp =>
-            emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            emp.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            emp.costCenter.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        if (!employees) return [];
+        return employees.filter(emp => {
+            if (!emp) return false;
+            const search = (searchTerm || '').toLowerCase();
+            const fullName = (emp.fullName || '').toLowerCase();
+            const position = (emp.position || '').toLowerCase();
+            const costCenter = (emp.costCenter || '').toLowerCase();
+
+            return fullName.includes(search) ||
+                position.includes(search) ||
+                costCenter.includes(search);
+        });
     }, [employees, searchTerm]);
 
     const stats = useMemo(() => {

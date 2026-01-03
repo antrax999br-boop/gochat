@@ -100,131 +100,179 @@ const App: React.FC = () => {
 
   const fetchAllData = async () => {
     try {
-      // Fetch Clients
-      const { data: clientsData } = await supabase.from('clients').select('*').order('company_name');
-      if (clientsData) {
-        setClients(clientsData.map(c => ({
-          id: c.id,
-          cnpj: c.cnpj,
-          companyName: c.company_name,
-          contactName: c.contact_name,
-          contactPhone: c.contact_phone,
-          address: c.address,
-          email: c.email,
-          createdAt: c.created_at
-        })));
+      // 1. Fetch Employees (Prioritized)
+      try {
+        const { data: empData, error: empErr } = await supabase.from('employees').select('*').order('full_name');
+        if (empErr) {
+          console.error('Supabase error fetching employees:', empErr);
+          throw empErr;
+        }
+
+        if (empData) {
+          console.log(`📡 SYNC: Fetched ${empData.length} employees`);
+          const mapped = empData.map(emp => ({
+            id: emp.id,
+            costCenter: emp.cost_center || '',
+            fullName: emp.full_name || 'Sem Nome',
+            position: emp.position || 'Sem Cargo',
+            hireDate: emp.hire_date || new Date().toISOString().split('T')[0],
+            workSchedule: emp.work_schedule || '',
+            baseSalary: Number(emp.base_salary) || 0,
+            additionalPercent20: Number(emp.additional_percent_20) || 0,
+            attendance: Number(emp.attendance) || 0,
+            mealVoucher: Number(emp.meal_voucher) || 0,
+            foodVoucherPerDay: Number(emp.food_voucher_per_day) || 0,
+            foodVoucherTotal: Number(emp.food_voucher_total) || 0,
+            transportVoucherPerDay: Number(emp.transport_voucher_per_day) || 0,
+            transportVoucherTotal: Number(emp.transport_voucher_total) || 0,
+            absenceDays: Number(emp.absence_days) || 0,
+            absenceTotal: Number(emp.absence_total) || 0,
+            fuel: Number(emp.fuel) || 0,
+            carRental: Number(emp.car_rental) || 0,
+            observations: emp.observations || '',
+            cpf: emp.cpf || '',
+            department: emp.department || '',
+            email: emp.email || '',
+            phone: emp.phone || '',
+            salary: Number(emp.salary) || 0,
+            status: emp.status || 'active',
+            address: emp.address || '',
+            birthDate: emp.birth_date || ''
+          }));
+          setEmployees(mapped);
+        } else {
+          setEmployees([]);
+        }
+      } catch (e: any) {
+        console.error('CRITICAL: Mapping or fetch failed for employees:', e);
+        // Only alert if it's a real fetch error, not just an empty result
+        if (e.message && !e.message.includes('null')) {
+          alert('Aviso técnico: Erro ao carregar funcionários do banco.');
+        }
       }
 
-      // Fetch Services
-      const { data: servicesData } = await supabase.from('services').select('*').order('name');
-      if (servicesData) {
-        setServices(servicesData);
+      // 2. Fetch Clients
+      let clientsData: any[] = [];
+      try {
+        const { data, error } = await supabase.from('clients').select('*').order('company_name');
+        if (error) throw error;
+        if (data) {
+          clientsData = data;
+          setClients(data.map(c => ({
+            id: c.id,
+            cnpj: c.cnpj,
+            companyName: c.company_name,
+            contactName: c.contact_name,
+            contactPhone: c.contact_phone,
+            address: c.address,
+            email: c.email,
+            createdAt: c.created_at
+          })));
+        }
+      } catch (e) {
+        console.error('Error fetching clients:', e);
       }
 
-      // Fetch Transactions
-      const { data: transData } = await supabase.from('transactions').select('*').order('date', { ascending: false });
-      if (transData) {
-        setTransactions(transData.map(t => ({
-          id: t.id,
-          description: t.description,
-          amount: Number(t.amount),
-          type: t.type,
-          date: t.date,
-          month: t.month,
-          category: t.category,
-          clientId: t.client_id
-        })));
+      // 3. Fetch Services
+      try {
+        const { data, error } = await supabase.from('services').select('*').order('name');
+        if (error) throw error;
+        if (data) setServices(data);
+      } catch (e) {
+        console.error('Error fetching services:', e);
       }
 
-      // Fetch Quotes with Items
-      const { data: quotesData } = await supabase.from('quotes').select(`
-        *,
-        items:quote_items(*)
-      `).order('date', { ascending: false }).order('created_at', { ascending: false });
-
-      if (quotesData) {
-        const mappedQuotes = quotesData.map(q => ({
-          id: q.id,
-          clientId: q.client_id,
-          clientName: clientsData?.find(c => c.id === q.client_id)?.company_name || 'Desconhecido',
-          items: q.items.map((i: any) => ({
-            serviceId: i.service_id,
-            serviceName: i.service_name,
-            quantity: i.quantity,
-            unitPrice: Number(i.unit_price),
-            total: Number(i.total)
-          })),
-          subtotal: Number(q.subtotal),
-          discountPercentage: Number(q.discount_percentage),
-          discountAmount: Number(q.discount_amount),
-          total: Number(q.total),
-          status: q.status,
-          date: q.date
-        }));
-        setQuotes(mappedQuotes);
-      }
-      // Fetch Expense Structure
-      const { data: expData } = await supabase.from('expense_structure').select('*').order('created_at');
-      if (expData) {
-        setExpenseItems(expData.map(e => ({
-          id: e.id,
-          description: e.description,
-          type: e.type,
-          value: Number(e.value)
-        })));
+      // 4. Fetch Transactions
+      try {
+        const { data, error } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+        if (error) throw error;
+        if (data) {
+          setTransactions(data.map(t => ({
+            id: t.id,
+            description: t.description,
+            amount: Number(t.amount),
+            type: t.type,
+            date: t.date,
+            month: t.month,
+            category: t.category,
+            clientId: t.client_id
+          })));
+        }
+      } catch (e) {
+        console.error('Error fetching transactions:', e);
       }
 
-      // Fetch Calendar Events
-      const { data: eventsData } = await supabase.from('calendar_events').select('*').order('date');
-      if (eventsData) {
-        const mappedEvents: CalendarEvent[] = eventsData.map(e => ({
-          id: e.id,
-          title: e.title,
-          description: e.description,
-          date: e.date,
-          type: e.type as any,
-          completed: e.completed,
-          amount: e.amount ? Number(e.amount) : undefined
-        }));
-        setEvents(mappedEvents);
-        checkNotifications(mappedEvents);
+      // 5. Fetch Quotes with Items
+      try {
+        const { data, error } = await supabase.from('quotes').select(`
+          *,
+          items:quote_items(*)
+        `).order('date', { ascending: false }).order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (data) {
+          const mappedQuotes = data.map(q => ({
+            id: q.id,
+            clientId: q.client_id,
+            clientName: clientsData?.find(c => c.id === q.client_id)?.company_name || 'Desconhecido',
+            items: q.items?.map((i: any) => ({
+              serviceId: i.service_id,
+              serviceName: i.service_name,
+              quantity: i.quantity,
+              unitPrice: Number(i.unit_price),
+              total: Number(i.total)
+            })) || [],
+            subtotal: Number(q.subtotal),
+            discountPercentage: Number(q.discount_percentage),
+            discountAmount: Number(q.discount_amount),
+            total: Number(q.total),
+            status: q.status,
+            date: q.date
+          }));
+          setQuotes(mappedQuotes);
+        }
+      } catch (e) {
+        console.error('Error fetching quotes:', e);
       }
 
-      // Fetch Employees
-      const { data: employeesData } = await supabase.from('employees').select('*').order('full_name');
-      if (employeesData) {
-        setEmployees(employeesData.map(emp => ({
-          id: emp.id,
-          costCenter: emp.cost_center || '',
-          fullName: emp.full_name,
-          position: emp.position,
-          hireDate: emp.hire_date,
-          workSchedule: emp.work_schedule || '',
-          baseSalary: Number(emp.base_salary) || 0,
-          additionalPercent20: Number(emp.additional_percent_20) || 0,
-          attendance: Number(emp.attendance) || 0,
-          mealVoucher: Number(emp.meal_voucher) || 0,
-          foodVoucherPerDay: Number(emp.food_voucher_per_day) || 0,
-          foodVoucherTotal: Number(emp.food_voucher_total) || 0,
-          transportVoucherPerDay: Number(emp.transport_voucher_per_day) || 0,
-          transportVoucherTotal: Number(emp.transport_voucher_total) || 0,
-          absenceDays: Number(emp.absence_days) || 0,
-          absenceTotal: Number(emp.absence_total) || 0,
-          fuel: Number(emp.fuel) || 0,
-          carRental: Number(emp.car_rental) || 0,
-          observations: emp.observations || '',
-          cpf: emp.cpf,
-          department: emp.department,
-          email: emp.email,
-          phone: emp.phone,
-          salary: Number(emp.salary),
-          status: emp.status,
-          address: emp.address,
-          birthDate: emp.birth_date
-        })));
+      // 6. Fetch Expense Structure
+      try {
+        const { data, error } = await supabase.from('expense_structure').select('*').order('created_at');
+        if (error) throw error;
+        if (data) {
+          setExpenseItems(data.map(e => ({
+            id: e.id,
+            description: e.description,
+            type: e.type,
+            value: Number(e.value)
+          })));
+        }
+      } catch (e) {
+        console.error('Error fetching expense structure:', e);
+      }
+
+      // 7. Fetch Calendar Events
+      try {
+        const { data, error } = await supabase.from('calendar_events').select('*').order('date');
+        if (error) throw error;
+        if (data) {
+          const mappedEvents: CalendarEvent[] = data.map(e => ({
+            id: e.id,
+            title: e.title,
+            description: e.description,
+            date: e.date,
+            type: e.type as any,
+            completed: e.completed,
+            amount: e.amount ? Number(e.amount) : undefined
+          }));
+          setEvents(mappedEvents);
+          checkNotifications(mappedEvents);
+        }
+      } catch (e) {
+        console.error('Error fetching calendar events:', e);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('General data fetch error:', error);
     }
   };
 
@@ -500,7 +548,7 @@ const App: React.FC = () => {
           fetchAllData={fetchAllData}
         />;
       case Page.EMPLOYEES:
-        return <EmployeesScreen employees={employees} fetchAllData={fetchAllData} />;
+        return <EmployeesScreen employees={employees} setEmployees={setEmployees} fetchAllData={fetchAllData} />;
       default:
         return <DashboardScreen transactions={transactions} expenseItems={expenseItems} />;
     }
