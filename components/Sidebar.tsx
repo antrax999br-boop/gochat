@@ -23,13 +23,13 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   const navItems = [
     { id: Page.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
-    { id: Page.CONVERSATIONS, label: 'Conversas', icon: MessageSquare },
     { id: Page.CALENDAR, label: 'Calendário', icon: Calendar },
+    { id: Page.CONVERSATIONS, label: 'Conversas', icon: MessageSquare },
+    { id: Page.SALES, label: 'Vendas', icon: ShoppingCart },
     { id: Page.FINANCE, label: 'Financeiro', icon: Wallet },
     { id: Page.EXPENSES, label: 'Estrutura de Gastos', icon: Table },
-    { id: Page.CLIENTS, label: 'Clientes', icon: Users },
-    { id: Page.SALES, label: 'Vendas', icon: ShoppingCart },
     { id: Page.EMPLOYEES, label: 'Funcionários', icon: UserCheck },
+    { id: Page.CLIENTS, label: 'Clientes', icon: Users },
     { id: Page.SETTINGS, label: 'Configurações', icon: Settings },
   ];
 
