@@ -86,6 +86,20 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems 
     }).filter(d => d.Receita > 0 || d.Despesa > 0 || d.Saldo !== 0);
   }, [transactions, expenseItems]);
 
+  // Merge transactions with expense structure items for the bottom list
+  const consolidatedTransactions = useMemo(() => {
+    const structural = expenseItems.map(item => ({
+      id: item.id,
+      description: `[Estrutura] ${item.description}`,
+      amount: item.value,
+      type: item.type,
+      date: new Date().toISOString().split('T')[0], // Placeholder as recurring
+      category: 'Estrutura Fixa'
+    }));
+
+    return [...structural, ...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions, expenseItems]);
+
   const runwayMonths = stats.monthExpense > 0 ? (stats.totalBalance / stats.monthExpense).toFixed(1) : "Inf.";
   const profitMargin = stats.monthIncome > 0 ? (((stats.monthIncome - stats.monthExpense) / stats.monthIncome) * 100).toFixed(1) : "0";
 
@@ -100,7 +114,7 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems 
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <p className="text-sm font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider">Saldo Total</p>
+              <p className="text-sm font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider">Saldo Total Acumulado</p>
               <h3 className={`text-3xl font-extrabold mt-2 tracking-tight ${stats.totalBalance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-500'}`}>
                 R$ {stats.totalBalance.toLocaleString()}
               </h3>
@@ -176,7 +190,7 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems 
           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Balanço Consolidado</h3>
-              <p className="text-sm text-slate-500">Histórico de Saldo Mensal (Vendas + Gastos Estruturais)</p>
+              <p className="text-sm text-slate-500">evolução do saldo (Real + Estrutural)</p>
             </div>
           </div>
           <div className="flex-1 min-h-[300px] p-6">
@@ -203,7 +217,7 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems 
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Saúde Financeira</h3>
-            <p className="text-sm text-slate-500">Kpis de sustentabilidade em tempo real</p>
+            <p className="text-sm text-slate-500">Indicadores baseados em toda a operação</p>
           </div>
           <div className="p-6 flex flex-col gap-4">
             {[
@@ -242,12 +256,12 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Últimas Transações (Real)</h3>
-            <p className="text-sm text-slate-500">Fluxo de caixa gerado por vendas e manuais</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Movimentações Consolidadas</h3>
+            <p className="text-sm text-slate-500">Últimas transações reais + itens da estrutura de gastos</p>
           </div>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {transactions.slice(0, 4).map((t, i) => (
+          {consolidatedTransactions.slice(0, 8).map((t, i) => (
             <div key={i} className="flex items-start gap-4 p-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800">
               <div className={`p-3 rounded-xl ${t.type === 'income' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'} dark:bg-slate-800`}>
                 {t.type === 'income' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
@@ -256,13 +270,16 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems 
                 <div className="flex justify-between items-start">
                   <p className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate w-32">{t.description}</p>
                   <span className={`text-xs font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {t.type === 'income' ? '+' : '-'} {t.amount}
+                    {t.type === 'income' ? '+' : '-'} {t.amount.toLocaleString()}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">{t.category} • {new Date(t.date).toLocaleDateString()}</p>
               </div>
             </div>
           ))}
+          {consolidatedTransactions.length === 0 && (
+            <div className="col-span-4 text-center py-8 text-slate-400">Nenhuma movimentação registrada.</div>
+          )}
         </div>
       </div>
     </div>
