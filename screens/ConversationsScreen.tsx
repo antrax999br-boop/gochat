@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   File as FileIcon,
   Download,
+  CheckCheck,
   X,
   Loader2
 } from 'lucide-react';
