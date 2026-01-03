@@ -500,7 +500,7 @@ const App: React.FC = () => {
           fetchAllData={fetchAllData}
         />;
       case Page.EMPLOYEES:
-        return <EmployeesScreen employees={employees} setEmployees={setEmployees} />;
+        return <EmployeesScreen employees={employees} fetchAllData={fetchAllData} />;
       default:
         return <DashboardScreen transactions={transactions} expenseItems={expenseItems} />;
     }

@@ -20,12 +20,14 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+import { supabase } from '../lib/supabase';
+
 interface EmployeesScreenProps {
     employees: Employee[];
-    setEmployees: (employees: Employee[]) => void;
+    fetchAllData: () => Promise<void>;
 }
 
-const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmployees }) => {
+const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, fetchAllData }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
     const [employeeForm, setEmployeeForm] = useState<Partial<Employee>>({});
@@ -71,46 +73,51 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
         return remuneration + benefits - discounts + operationalCosts;
     };
 
-    const handleSaveEmployee = (e: React.FormEvent) => {
+    const handleSaveEmployee = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!employeeForm.fullName || !employeeForm.position || !employeeForm.costCenter) {
             alert('Nome, Cargo e Centro de Custo são obrigatórios!');
             return;
         }
 
-        if (editingEmployeeId) {
-            setEmployees(employees.map(emp =>
-                emp.id === editingEmployeeId ? { ...emp, ...employeeForm } as Employee : emp
-            ));
-        } else {
-            const newEmployee: Employee = {
-                id: Date.now().toString(),
-                costCenter: employeeForm.costCenter || '',
-                fullName: employeeForm.fullName || '',
-                position: employeeForm.position || '',
-                hireDate: employeeForm.hireDate || new Date().toISOString().split('T')[0],
-                workSchedule: employeeForm.workSchedule || '',
-                baseSalary: employeeForm.baseSalary || 0,
-                additionalPercent20: employeeForm.additionalPercent20 || 0,
-                attendance: employeeForm.attendance || 0,
-                mealVoucher: employeeForm.mealVoucher || 0,
-                foodVoucherPerDay: employeeForm.foodVoucherPerDay || 0,
-                foodVoucherTotal: employeeForm.foodVoucherTotal || 0,
-                transportVoucherPerDay: employeeForm.transportVoucherPerDay || 0,
-                transportVoucherTotal: employeeForm.transportVoucherTotal || 0,
-                absenceDays: employeeForm.absenceDays || 0,
-                absenceTotal: employeeForm.absenceTotal || 0,
-                fuel: employeeForm.fuel || 0,
-                carRental: employeeForm.carRental || 0,
-                observations: employeeForm.observations || '',
+        try {
+            const dataToSave = {
+                cost_center: employeeForm.costCenter,
+                full_name: employeeForm.fullName,
+                position: employeeForm.position,
+                hire_date: employeeForm.hireDate,
+                work_schedule: employeeForm.workSchedule,
+                base_salary: employeeForm.baseSalary,
+                additional_percent_20: employeeForm.additionalPercent20,
+                attendance: employeeForm.attendance,
+                meal_voucher: employeeForm.mealVoucher,
+                food_voucher_per_day: employeeForm.foodVoucherPerDay,
+                food_voucher_total: employeeForm.foodVoucherTotal,
+                transport_voucher_per_day: employeeForm.transportVoucherPerDay,
+                transport_voucher_total: employeeForm.transportVoucherTotal,
+                absence_days: employeeForm.absenceDays,
+                absence_total: employeeForm.absenceTotal,
+                fuel: employeeForm.fuel,
+                car_rental: employeeForm.carRental,
+                observations: employeeForm.observations,
                 status: 'active'
             };
-            setEmployees([...employees, newEmployee]);
-        }
 
-        setShowEmployeeModal(false);
-        setEmployeeForm({});
-        setEditingEmployeeId(null);
+            if (editingEmployeeId) {
+                await supabase.from('employees').update(dataToSave).eq('id', editingEmployeeId);
+            } else {
+                await supabase.from('employees').insert(dataToSave);
+            }
+
+            await fetchAllData();
+            setShowEmployeeModal(false);
+            setEmployeeForm({});
+            setEditingEmployeeId(null);
+            alert('Funcionário salvo com sucesso!');
+        } catch (error) {
+            console.error('Error saving employee:', error);
+            alert('Erro ao salvar funcionário.');
+        }
     };
 
     const handleEditEmployee = (employee: Employee) => {
@@ -119,9 +126,15 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
         setShowEmployeeModal(true);
     };
 
-    const handleDeleteEmployee = (id: string) => {
+    const handleDeleteEmployee = async (id: string) => {
         if (confirm('Tem certeza que deseja excluir este funcionário?')) {
-            setEmployees(employees.filter(emp => emp.id !== id));
+            try {
+                await supabase.from('employees').delete().eq('id', id);
+                await fetchAllData();
+            } catch (error) {
+                console.error('Error deleting employee:', error);
+                alert('Erro ao excluir funcionário.');
+            }
         }
     };
 
