@@ -42,6 +42,7 @@ const SettingsScreen: React.FC = () => {
   }, []);
 
   const fetchSettings = async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('settings')
@@ -66,6 +67,8 @@ const SettingsScreen: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching settings:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -114,6 +117,15 @@ const SettingsScreen: React.FC = () => {
     navigator.clipboard.writeText(apiKey);
     alert('Chave da API copiada!');
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
+        <p className="text-slate-500 font-bold animate-pulse">Carregando configurações...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
