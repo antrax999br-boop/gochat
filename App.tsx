@@ -67,10 +67,11 @@ const App: React.FC = () => {
         });
         fetchAllData();
 
-        // Push to dashboard ONLY on sign in event to avoid interrupting active sessions on refresh
-        if (event === 'SIGNED_IN') {
+        // REMOVED: Automatic push to dashboard on re-auth to prevent navigation loss
+        // when returning to the tab.
+        /* if (event === 'SIGNED_IN') {
           setActivePage(Page.DASHBOARD);
-        }
+        } */
       } else {
         setUser(null);
         clearAllData();
