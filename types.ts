@@ -29,6 +29,7 @@ export interface Quote {
   id: string;
   clientId: string;
   clientName: string;
+  sellerName?: string;
   items: QuoteItem[];
   subtotal: number;
   discountPercentage: number;

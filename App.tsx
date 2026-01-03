@@ -213,6 +213,7 @@ const App: React.FC = () => {
             id: q.id,
             clientId: q.client_id,
             clientName: clientsData?.find(c => c.id === q.client_id)?.company_name || 'Desconhecido',
+            sellerName: q.seller_name,
             items: q.items?.map((i: any) => ({
               serviceId: i.service_id,
               serviceName: i.service_name,
