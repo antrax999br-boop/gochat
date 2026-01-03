@@ -136,11 +136,25 @@ const ConnectScreen: React.FC = () => {
                 <div className="flex flex-col items-center gap-4 text-center p-4">
                   <XCircle className="w-12 h-12 text-red-500" />
                   <span className="text-sm font-bold text-slate-900 dark:text-white">Falha ao conectar ao Backend</span>
-                  <p className="text-xs text-slate-500 max-w-[200px] mb-2">
-                    Tentando conectar em: <br />
-                    <span className="font-mono bg-slate-100 px-1 rounded">{backendUrl}</span>
-                  </p>
-                  <button onClick={activateSimulation} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-emerald-600 font-bold text-xs transition-colors">
+                  <div className="text-xs text-slate-500 max-w-[250px] mb-2 space-y-2">
+                    <p>O servidor remoto precisa de autorização.</p>
+                    <div className="bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800">
+                      <p className="font-bold text-amber-700 dark:text-amber-400 mb-1">1. Copie esta senha:</p>
+                      <code className="block bg-white dark:bg-black p-1 rounded select-all font-mono text-[10px] break-all">
+                        2804:4dbc:8b00:ed:1d20:a136:73d9:75c8
+                      </code>
+                    </div>
+                    <a
+                      href={`${backendUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full text-center py-2 bg-emerald-500 text-white font-bold rounded hover:bg-emerald-600 transition-colors"
+                    >
+                      2. Clique aqui para Liberar Acesso
+                    </a>
+                    <p className="text-[10px]">Cole a senha na página que abrir e clique em Submit.</p>
+                  </div>
+                  <button onClick={activateSimulation} className="text-xs text-slate-400 underline hover:text-emerald-500 mt-2">
                     Usar Modo Simulação
                   </button>
                 </div>

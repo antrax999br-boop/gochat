@@ -1,7 +1,6 @@
 export const getBackendUrl = (): string => {
-
-    // --- URL TÚNEL SERVEO (Mais Estável) ---
-    const tunnelUrl = 'https://a38ee3d861a0bd73-45-235-250-200.serveousercontent.com';
+    // URL FIXA DO TUNNEL
+    const tunnelUrl = 'https://vitta-manager-api.loca.lt';
 
     if (import.meta.env.VITE_BACKEND_URL) {
         if (import.meta.env.VITE_BACKEND_URL.includes('localhost')) {
@@ -14,8 +13,11 @@ export const getBackendUrl = (): string => {
         const hostname = window.location.hostname;
         if (hostname.includes('vercel.app')) return tunnelUrl;
         if (hostname !== 'localhost' && hostname !== '127.0.0.1') return tunnelUrl;
-        return 'http://localhost:3001';
     }
 
     return 'http://localhost:3001';
+};
+
+export const getTunnelPassword = (): string => {
+    return '2804:4dbc:8b00:ed:1d20:a136:73d9:75c8';
 };
