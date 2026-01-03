@@ -1,11 +1,9 @@
 export const getBackendUrl = (): string => {
 
-    // --- URL TÚNEL DINÂMICA (Atualizada em 03/01) ---
-    const tunnelUrl = 'https://decab30da15c42.lhr.life';
+    // --- URL TÚNEL SERVEO (Mais Estável) ---
+    const tunnelUrl = 'https://a38ee3d861a0bd73-45-235-250-200.serveousercontent.com';
 
-    // Se estiver em produção (Vercel define isso)
     if (import.meta.env.VITE_BACKEND_URL) {
-        // Se a variável de ambiente for o padrão localhost, forçamos o túnel
         if (import.meta.env.VITE_BACKEND_URL.includes('localhost')) {
             return tunnelUrl;
         }
@@ -14,18 +12,8 @@ export const getBackendUrl = (): string => {
 
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
-
-        // Vercel Production
-        if (hostname.includes('vercel.app')) {
-            return tunnelUrl;
-        }
-
-        // Testes Locais em outros dispositivos
-        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-            return tunnelUrl;
-        }
-
-        // Desenvolvimento Local
+        if (hostname.includes('vercel.app')) return tunnelUrl;
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1') return tunnelUrl;
         return 'http://localhost:3001';
     }
 
