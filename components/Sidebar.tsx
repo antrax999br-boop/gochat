@@ -53,7 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
           <button
             key={item.id}
             onClick={() => onNavigate(item.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${activePage === item.id
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group focus:outline-none ${activePage === item.id
               ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 font-bold border border-emerald-100 dark:border-emerald-500/20 shadow-sm'
               : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
