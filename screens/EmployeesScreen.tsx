@@ -14,8 +14,11 @@ import {
     TrendingDown,
     Briefcase,
     Calendar,
-    Clock
+    Clock,
+    FileDown
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface EmployeesScreenProps {
     employees: Employee[];
@@ -142,6 +145,139 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
         return { totalPayroll, totalRemuneration, totalBenefits, totalOperational, count: employees.length };
     }, [employees]);
 
+    const exportToPDF = () => {
+        const doc = new jsPDF('landscape');
+        const pageWidth = doc.internal.pageSize.width;
+
+        // Header
+        doc.setFillColor(16, 185, 129); // emerald-500
+        doc.rect(0, 0, pageWidth, 35, 'F');
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.text('FOLHA DE PAGAMENTO', pageWidth / 2, 15, { align: 'center' });
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Schumacher Tecnologia Ltda.', pageWidth / 2, 23, { align: 'center' });
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, 29, { align: 'center' });
+
+        // Summary Cards
+        doc.setTextColor(71, 85, 105);
+        doc.setFontSize(9);
+        let yPos = 45;
+
+        const summaryData = [
+            ['Total de Funcionários', stats.count.toString()],
+            ['Remuneração Total', `R$ ${stats.totalRemuneration.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+            ['Benefícios Total', `R$ ${stats.totalBenefits.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+            ['Custo Total', `R$ ${stats.totalPayroll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]
+        ];
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Resumo Financeiro', 'Valor']],
+            body: summaryData,
+            theme: 'grid',
+            headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+            styles: { fontSize: 9, cellPadding: 3 },
+            columnStyles: {
+                0: { fontStyle: 'bold', cellWidth: 60 },
+                1: { halign: 'right', fontStyle: 'bold' }
+            }
+        });
+
+        // Detailed Employee Table
+        const tableData = filteredEmployees.map(emp => {
+            const remuneration = (emp.baseSalary || 0) + (emp.additionalPercent20 || 0) + (emp.attendance || 0);
+            const benefits = (emp.mealVoucher || 0) + (emp.foodVoucherTotal || 0) + (emp.transportVoucherTotal || 0);
+            const discounts = (emp.absenceTotal || 0);
+            const operational = (emp.fuel || 0) + (emp.carRental || 0);
+            const total = calculateTotal(emp);
+
+            return [
+                emp.costCenter,
+                emp.fullName,
+                emp.position,
+                emp.workSchedule || '-',
+                `R$ ${(emp.baseSalary || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                `R$ ${(emp.additionalPercent20 || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                `R$ ${(emp.attendance || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                `R$ ${remuneration.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                `R$ ${benefits.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                `R$ ${discounts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                `R$ ${operational.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+            ];
+        });
+
+        autoTable(doc, {
+            startY: (doc as any).lastAutoTable.finalY + 10,
+            head: [[
+                'Centro\nCusto',
+                'Nome',
+                'Função',
+                'Escala',
+                'Salário\nBase',
+                'Adic.\n20%',
+                'Assid.',
+                'Total\nRemun.',
+                'Benef.',
+                'Desc.',
+                'Oper.',
+                'TOTAL'
+            ]],
+            body: tableData,
+            theme: 'striped',
+            headStyles: {
+                fillColor: [16, 185, 129],
+                textColor: 255,
+                fontStyle: 'bold',
+                fontSize: 8,
+                halign: 'center',
+                valign: 'middle'
+            },
+            styles: {
+                fontSize: 7,
+                cellPadding: 2,
+                overflow: 'linebreak'
+            },
+            columnStyles: {
+                0: { cellWidth: 18, halign: 'center' },
+                1: { cellWidth: 35, fontStyle: 'bold' },
+                2: { cellWidth: 25 },
+                3: { cellWidth: 15, halign: 'center' },
+                4: { cellWidth: 20, halign: 'right' },
+                5: { cellWidth: 18, halign: 'right' },
+                6: { cellWidth: 18, halign: 'right' },
+                7: { cellWidth: 22, halign: 'right', fontStyle: 'bold' },
+                8: { cellWidth: 20, halign: 'right' },
+                9: { cellWidth: 18, halign: 'right' },
+                10: { cellWidth: 18, halign: 'right' },
+                11: { cellWidth: 25, halign: 'right', fontStyle: 'bold', textColor: [16, 185, 129] }
+            },
+            didDrawPage: (data) => {
+                // Footer
+                const pageCount = (doc as any).internal.getNumberOfPages();
+                const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber;
+
+                doc.setFontSize(8);
+                doc.setTextColor(148, 163, 184);
+                doc.text(
+                    `Página ${currentPage} de ${pageCount}`,
+                    pageWidth / 2,
+                    doc.internal.pageSize.height - 10,
+                    { align: 'center' }
+                );
+            }
+        });
+
+        // Save
+        const fileName = `Folha_Pagamento_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+    };
+
     return (
         <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -149,12 +285,21 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
                     <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Folha de Pagamento</h1>
                     <p className="text-slate-500 dark:text-slate-400 mt-1">Gestão completa de custos com funcionários</p>
                 </div>
-                <button
-                    onClick={() => setShowEmployeeModal(true)}
-                    className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
-                >
-                    <Plus className="w-5 h-5" /> Novo Funcionário
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={exportToPDF}
+                        disabled={employees.length === 0}
+                        className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
+                    >
+                        <FileDown className="w-5 h-5" /> Exportar PDF
+                    </button>
+                    <button
+                        onClick={() => setShowEmployeeModal(true)}
+                        className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
+                    >
+                        <Plus className="w-5 h-5" /> Novo Funcionário
+                    </button>
+                </div>
             </div>
 
             {/* Stats Cards */}
