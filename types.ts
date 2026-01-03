@@ -111,15 +111,44 @@ export interface NotificationItem {
 
 export interface Employee {
   id: string;
+
+  // Dados Básicos
+  costCenter: string;
   fullName: string;
-  cpf: string;
   position: string;
-  department: string;
-  email: string;
-  phone: string;
-  salary: number;
   hireDate: string;
-  status: 'active' | 'inactive' | 'vacation';
+  workSchedule: string; // ESCALA
+
+  // Remuneração
+  baseSalary: number; // SALARIO BASE
+  additionalPercent20: number; // ADIC. 20%
+  attendance: number; // ASSIDUIDADE
+
+  // Benefícios
+  mealVoucher: number; // VA
+  foodVoucherPerDay: number; // VR DIA
+  foodVoucherTotal: number; // VR TOTAL
+  transportVoucherPerDay: number; // VT DIA
+  transportVoucherTotal: number; // VT TOTAL
+
+  // Descontos / Ajustes
+  absenceDays: number; // FALTAS DIAS
+  absenceTotal: number; // FALTAS TOTAL
+
+  // Custos Operacionais
+  fuel: number; // COMBUSTIVEL
+  carRental: number; // ALUGUEL CARRO
+
+  // Outros
+  observations: string; // OBS
+
+  // Campos Legados (manter compatibilidade)
+  cpf?: string;
+  department?: string;
+  email?: string;
+  phone?: string;
+  salary?: number;
+  status?: 'active' | 'inactive' | 'vacation';
   address?: string;
   birthDate?: string;
 }

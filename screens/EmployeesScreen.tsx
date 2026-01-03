@@ -1,23 +1,20 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Employee } from '../types';
 import {
     Users,
     Search,
     Plus,
     User as UserIcon,
-    Mail,
-    Phone,
     Trash2,
     Edit,
     X,
-    Briefcase,
-    Building2,
-    Calendar,
     DollarSign,
-    MapPin,
-    CheckCircle2,
-    XCircle,
-    Plane
+    Calculator as CalcIcon,
+    TrendingUp,
+    TrendingDown,
+    Briefcase,
+    Calendar,
+    Clock
 } from 'lucide-react';
 
 interface EmployeesScreenProps {
@@ -30,12 +27,51 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
     const [employeeForm, setEmployeeForm] = useState<Partial<Employee>>({});
     const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
-    const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'vacation'>('all');
+
+    // Auto-calculate totals when form changes
+    useEffect(() => {
+        if (employeeForm.foodVoucherPerDay !== undefined) {
+            const workDays = 22; // Dias úteis padrão
+            setEmployeeForm(prev => ({
+                ...prev,
+                foodVoucherTotal: (prev.foodVoucherPerDay || 0) * workDays
+            }));
+        }
+    }, [employeeForm.foodVoucherPerDay]);
+
+    useEffect(() => {
+        if (employeeForm.transportVoucherPerDay !== undefined) {
+            const workDays = 22;
+            setEmployeeForm(prev => ({
+                ...prev,
+                transportVoucherTotal: (prev.transportVoucherPerDay || 0) * workDays
+            }));
+        }
+    }, [employeeForm.transportVoucherPerDay]);
+
+    useEffect(() => {
+        if (employeeForm.absenceDays !== undefined && employeeForm.baseSalary !== undefined) {
+            const dailySalary = (employeeForm.baseSalary || 0) / 30;
+            setEmployeeForm(prev => ({
+                ...prev,
+                absenceTotal: dailySalary * (prev.absenceDays || 0)
+            }));
+        }
+    }, [employeeForm.absenceDays, employeeForm.baseSalary]);
+
+    const calculateTotal = (emp: Partial<Employee>) => {
+        const remuneration = (emp.baseSalary || 0) + (emp.additionalPercent20 || 0) + (emp.attendance || 0);
+        const benefits = (emp.mealVoucher || 0) + (emp.foodVoucherTotal || 0) + (emp.transportVoucherTotal || 0);
+        const discounts = (emp.absenceTotal || 0);
+        const operationalCosts = (emp.fuel || 0) + (emp.carRental || 0);
+
+        return remuneration + benefits - discounts + operationalCosts;
+    };
 
     const handleSaveEmployee = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!employeeForm.fullName || !employeeForm.cpf || !employeeForm.position) {
-            alert('Nome completo, CPF e cargo são obrigatórios!');
+        if (!employeeForm.fullName || !employeeForm.position || !employeeForm.costCenter) {
+            alert('Nome, Cargo e Centro de Custo são obrigatórios!');
             return;
         }
 
@@ -46,17 +82,25 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
         } else {
             const newEmployee: Employee = {
                 id: Date.now().toString(),
+                costCenter: employeeForm.costCenter || '',
                 fullName: employeeForm.fullName || '',
-                cpf: employeeForm.cpf || '',
                 position: employeeForm.position || '',
-                department: employeeForm.department || '',
-                email: employeeForm.email || '',
-                phone: employeeForm.phone || '',
-                salary: employeeForm.salary || 0,
                 hireDate: employeeForm.hireDate || new Date().toISOString().split('T')[0],
-                status: employeeForm.status || 'active',
-                address: employeeForm.address,
-                birthDate: employeeForm.birthDate
+                workSchedule: employeeForm.workSchedule || '',
+                baseSalary: employeeForm.baseSalary || 0,
+                additionalPercent20: employeeForm.additionalPercent20 || 0,
+                attendance: employeeForm.attendance || 0,
+                mealVoucher: employeeForm.mealVoucher || 0,
+                foodVoucherPerDay: employeeForm.foodVoucherPerDay || 0,
+                foodVoucherTotal: employeeForm.foodVoucherTotal || 0,
+                transportVoucherPerDay: employeeForm.transportVoucherPerDay || 0,
+                transportVoucherTotal: employeeForm.transportVoucherTotal || 0,
+                absenceDays: employeeForm.absenceDays || 0,
+                absenceTotal: employeeForm.absenceTotal || 0,
+                fuel: employeeForm.fuel || 0,
+                carRental: employeeForm.carRental || 0,
+                observations: employeeForm.observations || '',
+                status: 'active'
             };
             setEmployees([...employees, newEmployee]);
         }
@@ -79,53 +123,31 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
     };
 
     const filteredEmployees = useMemo(() => {
-        return employees.filter(emp => {
-            const matchesSearch = emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                emp.cpf.includes(searchTerm) ||
-                emp.position.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesStatus = filterStatus === 'all' || emp.status === filterStatus;
-            return matchesSearch && matchesStatus;
-        });
-    }, [employees, searchTerm, filterStatus]);
+        return employees.filter(emp =>
+            emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            emp.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            emp.costCenter.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [employees, searchTerm]);
 
     const stats = useMemo(() => {
-        const active = employees.filter(e => e.status === 'active').length;
-        const inactive = employees.filter(e => e.status === 'inactive').length;
-        const vacation = employees.filter(e => e.status === 'vacation').length;
-        const totalSalary = employees.filter(e => e.status === 'active').reduce((acc, e) => acc + e.salary, 0);
-        return { active, inactive, vacation, totalSalary };
+        const totalPayroll = employees.reduce((acc, emp) => acc + calculateTotal(emp), 0);
+        const totalRemuneration = employees.reduce((acc, emp) =>
+            acc + (emp.baseSalary || 0) + (emp.additionalPercent20 || 0) + (emp.attendance || 0), 0);
+        const totalBenefits = employees.reduce((acc, emp) =>
+            acc + (emp.mealVoucher || 0) + (emp.foodVoucherTotal || 0) + (emp.transportVoucherTotal || 0), 0);
+        const totalOperational = employees.reduce((acc, emp) =>
+            acc + (emp.fuel || 0) + (emp.carRental || 0), 0);
+
+        return { totalPayroll, totalRemuneration, totalBenefits, totalOperational, count: employees.length };
     }, [employees]);
 
-    const getStatusColor = (status: Employee['status']) => {
-        switch (status) {
-            case 'active': return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10';
-            case 'inactive': return 'bg-slate-100 text-slate-600 dark:bg-slate-500/10';
-            case 'vacation': return 'bg-blue-100 text-blue-600 dark:bg-blue-500/10';
-        }
-    };
-
-    const getStatusIcon = (status: Employee['status']) => {
-        switch (status) {
-            case 'active': return <CheckCircle2 className="w-4 h-4" />;
-            case 'inactive': return <XCircle className="w-4 h-4" />;
-            case 'vacation': return <Plane className="w-4 h-4" />;
-        }
-    };
-
-    const getStatusLabel = (status: Employee['status']) => {
-        switch (status) {
-            case 'active': return 'Ativo';
-            case 'inactive': return 'Inativo';
-            case 'vacation': return 'Férias';
-        }
-    };
-
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+        <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Gestão de Funcionários</h1>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1">Gerencie sua equipe e informações de RH.</p>
+                    <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Folha de Pagamento</h1>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">Gestão completa de custos com funcionários</p>
                 </div>
                 <button
                     onClick={() => setShowEmployeeModal(true)}
@@ -139,133 +161,111 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex justify-between items-start mb-2">
-                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Ativos</p>
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Funcionários</p>
+                        <Users className="w-5 h-5 text-emerald-500" />
                     </div>
-                    <h3 className="text-3xl font-extrabold text-emerald-600">{stats.active}</h3>
+                    <h3 className="text-3xl font-extrabold text-emerald-600">{stats.count}</h3>
                 </div>
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex justify-between items-start mb-2">
-                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Férias</p>
-                        <Plane className="w-5 h-5 text-blue-500" />
+                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Remuneração</p>
+                        <DollarSign className="w-5 h-5 text-blue-500" />
                     </div>
-                    <h3 className="text-3xl font-extrabold text-blue-600">{stats.vacation}</h3>
+                    <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">R$ {stats.totalRemuneration.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 </div>
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex justify-between items-start mb-2">
-                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Inativos</p>
-                        <XCircle className="w-5 h-5 text-slate-500" />
+                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Benefícios</p>
+                        <TrendingUp className="w-5 h-5 text-purple-500" />
                     </div>
-                    <h3 className="text-3xl font-extrabold text-slate-600">{stats.inactive}</h3>
+                    <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">R$ {stats.totalBenefits.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-2xl shadow-lg">
                     <div className="flex justify-between items-start mb-2">
-                        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Folha Salarial</p>
-                        <DollarSign className="w-5 h-5 text-emerald-500" />
+                        <p className="text-sm font-bold text-emerald-100 uppercase tracking-wider">Custo Total</p>
+                        <CalcIcon className="w-5 h-5 text-white" />
                     </div>
-                    <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">R$ {stats.totalSalary.toLocaleString()}</h3>
+                    <h3 className="text-2xl font-extrabold text-white">R$ {stats.totalPayroll.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
                 </div>
             </div>
 
-            {/* Search and Filter */}
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Buscar por nome, CPF ou cargo..."
-                        className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-slate-900 dark:text-white shadow-sm"
-                    />
-                </div>
-                <div className="flex gap-2">
-                    {(['all', 'active', 'vacation', 'inactive'] as const).map(status => (
-                        <button
-                            key={status}
-                            onClick={() => setFilterStatus(status)}
-                            className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${filterStatus === status
-                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-emerald-500'
-                                }`}
-                        >
-                            {status === 'all' ? 'Todos' : getStatusLabel(status)}
-                        </button>
-                    ))}
-                </div>
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar por nome, cargo ou centro de custo..."
+                    className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-slate-900 dark:text-white shadow-sm"
+                />
             </div>
 
-            {/* Employees Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredEmployees.map(employee => (
-                    <div key={employee.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm hover:border-emerald-500/50 transition-all group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-3 bg-slate-50 dark:bg-slate-950/50 rounded-xl text-emerald-500">
-                                <UserIcon className="w-6 h-6" />
-                            </div>
-                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full flex items-center gap-1 ${getStatusColor(employee.status)}`}>
-                                {getStatusIcon(employee.status)}
-                                {getStatusLabel(employee.status)}
-                            </span>
-                        </div>
+            {/* Employees Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+                            <tr>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Centro Custo</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nome</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Função</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Admissão</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Escala</th>
+                                <th className="text-right p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Salário Base</th>
+                                <th className="text-right p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Adic. 20%</th>
+                                <th className="text-right p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Total</th>
+                                <th className="text-center p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {filteredEmployees.map(emp => {
+                                const total = calculateTotal(emp);
+                                return (
+                                    <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
+                                        <td className="p-4 text-sm font-medium text-slate-900 dark:text-white">{emp.costCenter}</td>
+                                        <td className="p-4 text-sm font-bold text-slate-900 dark:text-white">{emp.fullName}</td>
+                                        <td className="p-4 text-sm text-slate-600 dark:text-slate-400">{emp.position}</td>
+                                        <td className="p-4 text-sm text-slate-600 dark:text-slate-400">{new Date(emp.hireDate).toLocaleDateString('pt-BR')}</td>
+                                        <td className="p-4 text-sm text-slate-600 dark:text-slate-400">{emp.workSchedule}</td>
+                                        <td className="p-4 text-sm text-right font-bold text-slate-900 dark:text-white">R$ {(emp.baseSalary || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                        <td className="p-4 text-sm text-right text-emerald-600">R$ {(emp.additionalPercent20 || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                        <td className="p-4 text-sm text-right font-black text-emerald-600">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                        <td className="p-4">
+                                            <div className="flex justify-center gap-2">
+                                                <button
+                                                    onClick={() => handleEditEmployee(emp)}
+                                                    className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteEmployee(emp.id)}
+                                                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
 
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight mb-1">{employee.fullName}</h3>
-                        <p className="text-sm text-emerald-600 font-bold mb-4">{employee.position}</p>
-
-                        <div className="space-y-2 mb-6">
-                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                                <Building2 className="w-3.5 h-3.5" />
-                                <span>{employee.department || 'Sem departamento'}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                                <Mail className="w-3.5 h-3.5" />
-                                <span className="truncate">{employee.email || 'Sem email'}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                                <Phone className="w-3.5 h-3.5" />
-                                <span>{employee.phone || 'Sem telefone'}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                                <Calendar className="w-3.5 h-3.5" />
-                                <span>Admissão: {new Date(employee.hireDate).toLocaleDateString()}</span>
-                            </div>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Salário</p>
-                                <p className="text-lg font-black text-emerald-600">R$ {employee.salary.toLocaleString()}</p>
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => handleEditEmployee(employee)}
-                                    className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors"
-                                >
-                                    <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteEmployee(employee.id)}
-                                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
+                {filteredEmployees.length === 0 && (
+                    <div className="text-center py-16">
+                        <Users className="w-16 h-16 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+                        <p className="text-slate-500 dark:text-slate-400 font-medium">Nenhum funcionário encontrado</p>
                     </div>
-                ))}
+                )}
             </div>
-
-            {filteredEmployees.length === 0 && (
-                <div className="text-center py-16">
-                    <Users className="w-16 h-16 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">Nenhum funcionário encontrado</p>
-                </div>
-            )}
 
             {/* Employee Modal */}
             {showEmployeeModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl p-8 border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto transform scale-100 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-5xl p-8 border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto transform scale-100 animate-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                                 {editingEmployeeId ? 'Editar Funcionário' : 'Novo Funcionário'}
@@ -282,119 +282,263 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
                             </button>
                         </div>
 
-                        <form onSubmit={handleSaveEmployee} className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Nome Completo *</label>
-                                    <input
-                                        type="text"
-                                        value={employeeForm.fullName || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, fullName: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                        placeholder="João Silva"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">CPF *</label>
-                                    <input
-                                        type="text"
-                                        value={employeeForm.cpf || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, cpf: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                        placeholder="000.000.000-00"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Cargo *</label>
-                                    <input
-                                        type="text"
-                                        value={employeeForm.position || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                        placeholder="Desenvolvedor"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Departamento</label>
-                                    <input
-                                        type="text"
-                                        value={employeeForm.department || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                        placeholder="TI"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Email</label>
-                                    <input
-                                        type="email"
-                                        value={employeeForm.email || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                        placeholder="joao@empresa.com"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Telefone</label>
-                                    <input
-                                        type="text"
-                                        value={employeeForm.phone || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                        placeholder="(11) 99999-9999"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Salário (R$)</label>
-                                    <input
-                                        type="number"
-                                        value={employeeForm.salary || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, salary: parseFloat(e.target.value) || 0 })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                        placeholder="5000"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Data de Admissão</label>
-                                    <input
-                                        type="date"
-                                        value={employeeForm.hireDate || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, hireDate: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Data de Nascimento</label>
-                                    <input
-                                        type="date"
-                                        value={employeeForm.birthDate || ''}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, birthDate: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Status</label>
-                                    <select
-                                        value={employeeForm.status || 'active'}
-                                        onChange={(e) => setEmployeeForm({ ...employeeForm, status: e.target.value as Employee['status'] })}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                    >
-                                        <option value="active">Ativo</option>
-                                        <option value="vacation">Férias</option>
-                                        <option value="inactive">Inativo</option>
-                                    </select>
+                        <form onSubmit={handleSaveEmployee} className="space-y-6">
+                            {/* Dados Básicos */}
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <UserIcon className="w-5 h-5 text-emerald-500" />
+                                    Dados Básicos
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Centro de Custo *</label>
+                                        <input
+                                            type="text"
+                                            value={employeeForm.costCenter || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, costCenter: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="CC-001"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Nome Completo *</label>
+                                        <input
+                                            type="text"
+                                            value={employeeForm.fullName || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, fullName: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="João Silva"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Função *</label>
+                                        <input
+                                            type="text"
+                                            value={employeeForm.position || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="Desenvolvedor"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Admissão</label>
+                                        <input
+                                            type="date"
+                                            value={employeeForm.hireDate || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, hireDate: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Escala</label>
+                                        <input
+                                            type="text"
+                                            value={employeeForm.workSchedule || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, workSchedule: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="12x36, 5x2, etc"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
+                            {/* Remuneração */}
                             <div>
-                                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Endereço</label>
-                                <textarea
-                                    value={employeeForm.address || ''}
-                                    onChange={(e) => setEmployeeForm({ ...employeeForm, address: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                    placeholder="Rua, número, bairro, cidade - UF"
-                                    rows={2}
-                                />
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <DollarSign className="w-5 h-5 text-emerald-500" />
+                                    Remuneração
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Salário Base (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.baseSalary || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, baseSalary: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="5000.00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Adic. 20% (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.additionalPercent20 || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, additionalPercent20: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="1000.00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Assiduidade (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.attendance || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, attendance: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="200.00"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Benefícios */}
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <TrendingUp className="w-5 h-5 text-emerald-500" />
+                                    Benefícios
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">VA (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.mealVoucher || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, mealVoucher: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="500.00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">VR Dia (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.foodVoucherPerDay || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, foodVoucherPerDay: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="35.00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">VR Total (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.foodVoucherTotal || ''}
+                                            readOnly
+                                            className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 outline-none dark:text-white cursor-not-allowed"
+                                            placeholder="Auto"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">VT Dia (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.transportVoucherPerDay || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, transportVoucherPerDay: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="15.00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">VT Total (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.transportVoucherTotal || ''}
+                                            readOnly
+                                            className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 outline-none dark:text-white cursor-not-allowed"
+                                            placeholder="Auto"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Descontos */}
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <TrendingDown className="w-5 h-5 text-rose-500" />
+                                    Descontos / Ajustes
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Faltas (Dias)</label>
+                                        <input
+                                            type="number"
+                                            value={employeeForm.absenceDays || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, absenceDays: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Faltas Total (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.absenceTotal || ''}
+                                            readOnly
+                                            className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 outline-none dark:text-white cursor-not-allowed"
+                                            placeholder="Auto"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Custos Operacionais */}
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <Briefcase className="w-5 h-5 text-emerald-500" />
+                                    Custos Operacionais
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Combustível (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.fuel || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, fuel: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="300.00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Aluguel Carro (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={employeeForm.carRental || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, carRental: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                            placeholder="1500.00"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Outros */}
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Outros</h3>
+                                <div>
+                                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Observações</label>
+                                    <textarea
+                                        value={employeeForm.observations || ''}
+                                        onChange={(e) => setEmployeeForm({ ...employeeForm, observations: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                        placeholder="Informações adicionais..."
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Total Preview */}
+                            <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-2xl">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="text-emerald-100 text-sm font-bold uppercase tracking-wider mb-1">Custo Total Mensal</p>
+                                        <h3 className="text-4xl font-extrabold text-white">
+                                            R$ {calculateTotal(employeeForm).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </h3>
+                                    </div>
+                                    <CalcIcon className="w-12 h-12 text-white/20" />
+                                </div>
                             </div>
 
                             <div className="flex gap-3 pt-4">
