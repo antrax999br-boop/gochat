@@ -12,6 +12,7 @@ import {
     Loader2,
     AlertCircle
 } from 'lucide-react';
+import { getBackendUrl } from '../lib/api';
 
 interface WhatsAppMessage {
     id: string;
@@ -42,7 +43,8 @@ const WhatsAppChatScreen: React.FC = () => {
 
     const socketRef = useRef<Socket | null>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+
+    const backendUrl = getBackendUrl();
 
     // 1. Setup Socket & Check Status
     useEffect(() => {

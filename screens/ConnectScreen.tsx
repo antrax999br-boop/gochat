@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, Zap, ShieldCheck, Smartphone, CheckCircle, Loader2, LogOut, XCircle } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 
+import { getBackendUrl } from '../lib/api';
+
 const ConnectScreen: React.FC = () => {
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [qrCode, setQrCode] = useState<string>('');
@@ -11,12 +13,12 @@ const ConnectScreen: React.FC = () => {
   useEffect(() => {
     if (useSimulation) return;
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    const backendUrl = getBackendUrl();
 
     // Function to poll WhatsApp status and QR
     const fetchWhatsAppStatus = async (isFirstRun = false) => {
       try {
-        const response = await fetch(`${backendUrl}/whatsapp/qrcode`);
+        const response = await fetch(`${backendUrl} /whatsapp/qrcode`);
         if (!response.ok) throw new Error('Backend offline');
 
         const data = await response.json();
@@ -128,7 +130,7 @@ const ConnectScreen: React.FC = () => {
         {/* QR Code Card */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-12 flex flex-col items-center justify-center text-center shadow-xl shadow-slate-200/50 dark:shadow-none">
           <div className="relative group">
-            <div className={`absolute -inset-1 bg-gradient-to-tr from-emerald-500 to-green-400 rounded-3xl blur opacity-25 transition-all ${status === 'connecting' ? 'opacity-60 duration-1000 animate-pulse' : 'group-hover:opacity-40'}`}></div>
+            <div className={`absolute - inset - 1 bg - gradient - to - tr from - emerald - 500 to - green - 400 rounded - 3xl blur opacity - 25 transition - all ${status === 'connecting' ? 'opacity-60 duration-1000 animate-pulse' : 'group-hover:opacity-40'} `}></div>
             <div className="relative w-64 h-64 bg-white dark:bg-slate-950 p-6 rounded-2xl shadow-inner border border-slate-100 dark:border-slate-800 flex items-center justify-center overflow-hidden">
               {/* Real QR Code or Loading State */}
               {connectionError && !useSimulation ? (
@@ -152,7 +154,7 @@ const ConnectScreen: React.FC = () => {
                 // Simulation Pattern
                 <div className="w-full h-full opacity-80 grid grid-cols-10 grid-rows-10 gap-1.5 p-2">
                   {[...Array(100)].map((_, i) => (
-                    <div key={i} className={`rounded-sm transition-all duration-700 ${Math.random() > 0.4 ? 'bg-slate-900 dark:bg-slate-400' : 'bg-transparent'}`}></div>
+                    <div key={i} className={`rounded - sm transition - all duration - 700 ${Math.random() > 0.4 ? 'bg-slate-900 dark:bg-slate-400' : 'bg-transparent'} `}></div>
                   ))}
                   <div className="absolute top-6 left-6 w-16 h-16 border-4 border-slate-900 dark:border-slate-200 rounded-lg flex items-center justify-center"><div className="w-8 h-8 bg-slate-900 dark:bg-slate-200 rounded"></div></div>
                   <div className="absolute top-6 right-6 w-16 h-16 border-4 border-slate-900 dark:border-slate-200 rounded-lg flex items-center justify-center"><div className="w-8 h-8 bg-slate-900 dark:bg-slate-200 rounded"></div></div>
