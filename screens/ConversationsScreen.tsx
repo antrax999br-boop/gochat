@@ -1,19 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User as AppUser, Message as AppMessage } from '../types';
+import { User as AppUser } from '../types';
 import { supabase } from '../lib/supabase';
 import {
   Search,
   MoreVertical,
   Send,
-  Paperclip,
+  PlusCircle,
   Smile,
   Mic,
   CheckCheck,
   Check,
   User,
-  PlusCircle,
-  Hash,
   MessageCircle,
   Users
 } from 'lucide-react';
@@ -51,29 +49,39 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
   // 1. Fetch all profiles (employees)
   useEffect(() => {
     const fetchProfiles = async () => {
+      console.log("Fetching profiles for chat...");
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .neq('id', currentUser.id)
         .order('username');
 
-      if (data) setProfiles(data);
+      if (data) {
+        console.log("Profiles loaded:", data.length);
+        setProfiles(data);
+      }
       if (error) console.error('Error fetching profiles:', error);
     };
 
     fetchProfiles();
   }, [currentUser.id]);
 
-  // 2. Fetch messages for selected profile or channel
+  // 2. Fetch messages & Subscribe
   useEffect(() => {
     const fetchMessages = async () => {
-      if (!selectedProfile && activeTab === 'users') return;
+      if (activeTab === 'users' && !selectedProfile) {
+        setMessages([]);
+        return;
+      }
+
+      console.log(`Fetching messages. Tab: ${activeTab}, Selected: ${selectedProfile?.username}`);
 
       let query = supabase.from('chat_messages').select('*');
 
       if (activeTab === 'users' && selectedProfile) {
-        // Private messages
-        query = query.or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedProfile.id}),and(sender_id.eq.${selectedProfile.id},receiver_id.eq.${currentUser.id})`);
+        // Private messages: (Sender=Me AND Receiver=Him) OR (Sender=Him AND Receiver=Me)
+        query = query.or(`sender_id.eq.${currentUser.id},sender_id.eq.${selectedProfile.id}`)
+          .or(`receiver_id.eq.${currentUser.id},receiver_id.eq.${selectedProfile.id}`);
       } else {
         // Group/General chat
         query = query.eq('channel_id', 'general');
@@ -81,35 +89,48 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
 
       const { data, error } = await query.order('created_at', { ascending: true });
 
-      if (data) setMessages(data);
+      if (data) {
+        console.log("Messages loaded:", data.length);
+        setMessages(data);
+      }
       if (error) console.error('Error fetching messages:', error);
     };
 
     fetchMessages();
 
-    // 3. Real-time Subscription
+    // 3. Real-time Subscription with a filter for the current view
+    // Note: We subscribe to ALL messages but only update state if they belong to current view
     const channel = supabase
-      .channel('chat-room')
+      .channel('chat-room-global')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'chat_messages'
       }, (payload) => {
-        const newMsg = payload.new as ChatMessage;
+        const m = payload.new as ChatMessage;
+        console.log("New message received via Realtime:", m.content);
 
-        // Decide if we should add it to the state
-        if (activeTab === 'groups' && newMsg.channel_id === 'general') {
-          setMessages(prev => [...prev, newMsg]);
-        } else if (activeTab === 'users' && selectedProfile) {
-          if ((newMsg.sender_id === currentUser.id && newMsg.receiver_id === selectedProfile.id) ||
-            (newMsg.sender_id === selectedProfile.id && newMsg.receiver_id === currentUser.id)) {
-            setMessages(prev => [...prev, newMsg]);
-          }
+        // Logic to determine if this message should be added to the current chat window
+        const isForGeneral = activeTab === 'groups' && m.channel_id === 'general';
+        const isForPrivate = activeTab === 'users' && selectedProfile && (
+          (m.sender_id === currentUser.id && m.receiver_id === selectedProfile.id) ||
+          (m.sender_id === selectedProfile.id && m.receiver_id === currentUser.id)
+        );
+
+        if (isForGeneral || isForPrivate) {
+          setMessages(prev => {
+            // Prevent duplicates (Supabase might send insert twice in some edge cases)
+            if (prev.find(existing => existing.id === m.id)) return prev;
+            return [...prev, m];
+          });
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Realtime subscription status:", status);
+      });
 
     return () => {
+      console.log("Closing chat channel...");
       supabase.removeChannel(channel);
     };
   }, [selectedProfile, activeTab, currentUser.id]);
@@ -123,22 +144,29 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    const text = newMessage.trim();
+    if (!text) return;
+
+    console.log("Sending message...", text);
 
     const messageData = {
       sender_id: currentUser.id,
       receiver_id: activeTab === 'users' ? selectedProfile?.id : null,
       channel_id: activeTab === 'groups' ? 'general' : 'private',
-      content: newMessage.trim(),
+      content: text,
     };
 
-    const { error } = await supabase.from('chat_messages').insert(messageData);
+    const { data, error } = await supabase.from('chat_messages').insert(messageData).select();
 
     if (error) {
       console.error('Error sending message:', error);
-      alert('Erro ao enviar mensagem.');
+      alert('Erro ao enviar: ' + error.message);
     } else {
+      console.log("Message sent successfully!");
       setNewMessage('');
+      // If the message was sent to a private user or general, 
+      // the real-time listener will add it to the state.
+      // But we can also add it immediately for better UX if needed.
     }
   };
 
@@ -158,7 +186,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
               <div className="flex gap-2">
                 <button
                   onClick={() => setActiveTab('users')}
-                  className={`p-2 rounded-lg transition-all ${activeTab === 'users' ? 'bg-emerald-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-400'}`}
+                  className={`p-2 rounded-lg transition-all ${activeTab === 'users' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-400'}`}
                   title="Funcionários"
                 >
                   <User className="w-5 h-5" />
@@ -168,7 +196,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                     setActiveTab('groups');
                     setSelectedProfile(null);
                   }}
-                  className={`p-2 rounded-lg transition-all ${activeTab === 'groups' ? 'bg-emerald-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-400'}`}
+                  className={`p-2 rounded-lg transition-all ${activeTab === 'groups' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-400'}`}
                   title="Grupos"
                 >
                   <Users className="w-5 h-5" />
@@ -194,12 +222,12 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                 className={`p-4 cursor-pointer border-l-4 transition-all hover:bg-white dark:hover:bg-slate-900 ${activeTab === 'groups' ? 'bg-white dark:bg-slate-900 border-emerald-500' : 'border-transparent'}`}
               >
                 <div className="flex gap-4 items-center">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-500 flex items-center justify-center font-black text-sm border border-blue-200 dark:border-blue-500/20">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-500 text-white flex items-center justify-center font-black text-sm border border-blue-600 shadow-lg">
                     G
                   </div>
                   <div className="flex-1">
-                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">Geral (Toda a Equipe)</h4>
-                    <p className="text-xs text-slate-500">Canal de avisos e chat geral</p>
+                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">Geral (Toda a Equipe)</h4>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Comunidade</p>
                   </div>
                 </div>
               </div>
@@ -216,12 +244,11 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                     <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 flex items-center justify-center font-black text-sm border border-emerald-200 dark:border-emerald-500/20 uppercase">
                       {profile.username.substring(0, 2)}
                     </div>
-                    {/* Placeholder for online status */}
                     <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900"></div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-extrabold text-slate-900 dark:text-white truncate tracking-tight">{profile.username}</h4>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-black tracking-widest">Funcionário</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-black tracking-widest">Online agora</p>
                   </div>
                 </div>
               </div>
@@ -238,16 +265,19 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
             {/* Chat Header */}
             <div className="h-20 px-8 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-4">
-                <div className={`w-11 h-11 rounded-2xl ${activeTab === 'groups' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'} dark:bg-opacity-10 flex items-center justify-center font-black text-sm border border-opacity-20`}>
+                <div className={`w-11 h-11 rounded-2xl ${activeTab === 'groups' ? 'bg-blue-500 text-white' : 'bg-emerald-500 text-white'} flex items-center justify-center font-black text-sm border border-opacity-20 shadow-md`}>
                   {activeTab === 'groups' ? 'G' : selectedProfile?.username.substring(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 dark:text-white leading-tight tracking-tight">
                     {activeTab === 'groups' ? 'Chat Geral Schumacher' : selectedProfile?.username}
                   </h3>
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                    {activeTab === 'groups' ? 'Equipe reunida' : 'Conversa Privada'}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                      {activeTab === 'groups' ? 'Canais Abertos' : 'Conexão Segura'}
+                    </p>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -268,11 +298,11 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                 return (
                   <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 duration-300`}>
                     {!isMe && activeTab === 'groups' && (
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
                         {senderProfile?.username || 'Colega'}
                       </span>
                     )}
-                    <div className={`max-w-[70%] px-5 py-4 rounded-3xl shadow-sm ${isMe ? 'bg-emerald-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none border border-slate-100 dark:border-slate-700'}`}>
+                    <div className={`max-w-[75%] px-5 py-4 rounded-3xl shadow-lg ${isMe ? 'bg-emerald-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none border border-slate-100 dark:border-slate-700'}`}>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                     </div>
                     <div className={`flex items-center gap-1.5 mt-2 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -288,7 +318,8 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
               })}
               {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50">
-                  <p className="text-sm font-bold uppercase tracking-widest italic">Nenhuma mensagem ainda.</p>
+                  <MessageCircle className="w-12 h-12 mb-4 animate-bounce" />
+                  <p className="text-sm font-bold uppercase tracking-widest italic">Inicie esta conversa!</p>
                 </div>
               )}
             </div>
@@ -296,16 +327,15 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
             {/* Chat Input */}
             <div className="p-6 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
               <form onSubmit={handleSendMessage} className="flex items-end gap-3 max-w-5xl mx-auto">
-                <div className="flex gap-1 pb-1">
-                  <button type="button" className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"><PlusCircle className="w-6 h-6" /></button>
-                  <button type="button" className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"><Smile className="w-6 h-6" /></button>
+                <div className="flex gap-1">
+                  <button type="button" className="p-3 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-2xl transition-all"><PlusCircle className="w-6 h-6" /></button>
                 </div>
                 <div className="flex-1 relative">
                   <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Digite sua mensagem interna..."
+                    placeholder="Falar com a equipe..."
                     className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm rounded-2xl py-4 pl-6 pr-14 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all dark:text-white"
                   />
                   <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-500 transition-colors">
@@ -315,7 +345,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                 <button
                   type="submit"
                   disabled={!newMessage.trim()}
-                  className="p-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:shadow-none text-white rounded-2xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                  className="p-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:shadow-none text-white rounded-2xl shadow-xl shadow-emerald-500/20 active:scale-95 transition-all"
                 >
                   <Send className="w-6 h-6" />
                 </button>
@@ -324,11 +354,13 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-slate-50/30 dark:bg-slate-900/10">
-            <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center text-emerald-500 mb-6">
-              <MessageCircle className="w-10 h-10" />
+            <div className="w-24 h-24 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center text-emerald-500 mb-8 border-4 border-emerald-500/5 rotate-3 hover:rotate-0 transition-transform duration-500">
+              <MessageCircle className="w-12 h-12" />
             </div>
-            <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Chat Interno Schumacher</h3>
-            <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-xs">Selecione um colega ou o canal geral para começar a conversar em tempo real.</p>
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">Schumacher Chat</h3>
+            <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-sm text-sm leading-relaxed">
+              Escolha um contato para trocar mensagens privadas ou utilize o canal <b>Geral</b> para falar com todos ao mesmo tempo.
+            </p>
           </div>
         )}
       </div>
