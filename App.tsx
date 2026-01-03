@@ -11,6 +11,7 @@ import ExpenseStructureScreen from './screens/ExpenseStructureScreen';
 import ClientsScreen from './screens/ClientsScreen';
 import SalesScreen from './screens/SalesScreen';
 import EmployeesScreen from './screens/EmployeesScreen';
+import WhatsAppChatScreen from './screens/WhatsAppChatScreen';
 import Layout from './components/Layout';
 import Calculator from './components/Calculator';
 import { supabase } from './lib/supabase';
@@ -549,6 +550,8 @@ const App: React.FC = () => {
         />;
       case Page.EMPLOYEES:
         return <EmployeesScreen employees={employees} setEmployees={setEmployees} fetchAllData={fetchAllData} />;
+      case Page.WHATSAPP_CHAT:
+        return <WhatsAppChatScreen />;
       default:
         return <DashboardScreen transactions={transactions} expenseItems={expenseItems} />;
     }

@@ -14,7 +14,7 @@ const ConnectScreen: React.FC = () => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
     // Function to poll WhatsApp status and QR
-    const fetchWhatsAppStatus = async () => {
+    const fetchWhatsAppStatus = async (isFirstRun = false) => {
       try {
         const response = await fetch(`${backendUrl}/whatsapp/qrcode`);
         if (!response.ok) throw new Error('Backend offline');
@@ -36,17 +36,24 @@ const ConnectScreen: React.FC = () => {
         }
       } catch (error) {
         console.error('Error fetching WhatsApp status:', error);
-        setConnectionError(true);
+        // Só mostra erro se não for a primeira tentativa logo ao carregar
+        if (!isFirstRun) {
+          setConnectionError(true);
+        }
       }
     };
 
-    // Initial fetch
-    fetchWhatsAppStatus();
+    // Initial fetch with small delay to prevent immediate error flash
+    const initialTimeout = setTimeout(() => fetchWhatsAppStatus(true), 1000);
 
-    // Set interval for 3 seconds as requested
-    const interval = setInterval(fetchWhatsAppStatus, 3000);
+    // Set interval for 3 seconds
+    const interval = setInterval(() => fetchWhatsAppStatus(false), 3000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+
   }, [useSimulation]);
 
   const handleDisconnect = () => {

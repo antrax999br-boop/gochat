@@ -8,7 +8,8 @@ export enum Page {
   EXPENSES = 'EXPENSES',
   CLIENTS = 'CLIENTS',
   SALES = 'SALES',
-  EMPLOYEES = 'EMPLOYEES'
+  EMPLOYEES = 'EMPLOYEES',
+  WHATSAPP_CHAT = 'WHATSAPP_CHAT'
 }
 
 export interface Service {

@@ -25,6 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
     { id: Page.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: Page.CALENDAR, label: 'Calendário', icon: Calendar },
     { id: Page.CONVERSATIONS, label: 'Conversas', icon: MessageSquare },
+    { id: Page.WHATSAPP_CHAT, label: 'WhatsApp', icon: Zap },
     { id: Page.SALES, label: 'Vendas', icon: ShoppingCart },
     { id: Page.FINANCE, label: 'Financeiro', icon: Wallet },
     { id: Page.EXPENSES, label: 'Estrutura de Gastos', icon: Table },
