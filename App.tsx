@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Page, User, CalendarEvent, NotificationItem, Transaction, Client, Quote, Service, ExpenseItem } from './types';
+import { Page, User, CalendarEvent, NotificationItem, Transaction, Client, Quote, Service, ExpenseItem, Employee } from './types';
 import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import ConnectScreen from './screens/ConnectScreen';
@@ -10,6 +10,7 @@ import CalendarScreen from './screens/CalendarScreen';
 import ExpenseStructureScreen from './screens/ExpenseStructureScreen';
 import ClientsScreen from './screens/ClientsScreen';
 import SalesScreen from './screens/SalesScreen';
+import EmployeesScreen from './screens/EmployeesScreen';
 import Layout from './components/Layout';
 import Calculator from './components/Calculator';
 import { supabase } from './lib/supabase';
@@ -36,6 +37,7 @@ const App: React.FC = () => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
   useEffect(() => {
     console.log("App Schumacher v1.1 - Supabase Sync Active");
@@ -183,6 +185,25 @@ const App: React.FC = () => {
         setEvents(mappedEvents);
         checkNotifications(mappedEvents);
       }
+
+      // Fetch Employees
+      const { data: employeesData } = await supabase.from('employees').select('*').order('full_name');
+      if (employeesData) {
+        setEmployees(employeesData.map(emp => ({
+          id: emp.id,
+          fullName: emp.full_name,
+          cpf: emp.cpf,
+          position: emp.position,
+          department: emp.department,
+          email: emp.email,
+          phone: emp.phone,
+          salary: Number(emp.salary),
+          hireDate: emp.hire_date,
+          status: emp.status,
+          address: emp.address,
+          birthDate: emp.birth_date
+        })));
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -195,6 +216,7 @@ const App: React.FC = () => {
     setQuotes([]);
     setExpenseItems([]);
     setEvents([]);
+    setEmployees([]);
   };
 
   const handleUpdateTransactions = async (newTransactions: Transaction[]) => {
@@ -427,6 +449,8 @@ const App: React.FC = () => {
           onUpdateServices={handleUpdateServices}
           fetchAllData={fetchAllData}
         />;
+      case Page.EMPLOYEES:
+        return <EmployeesScreen employees={employees} setEmployees={setEmployees} />;
       default:
         return <DashboardScreen transactions={transactions} expenseItems={expenseItems} />;
     }

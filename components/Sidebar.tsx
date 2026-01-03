@@ -11,7 +11,8 @@ import {
   Calendar,
   Table,
   Users,
-  ShoppingCart
+  ShoppingCart,
+  UserCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
     { id: Page.EXPENSES, label: 'Estrutura de Gastos', icon: Table },
     { id: Page.CLIENTS, label: 'Clientes', icon: Users },
     { id: Page.SALES, label: 'Vendas', icon: ShoppingCart },
+    { id: Page.EMPLOYEES, label: 'Funcionários', icon: UserCheck },
     { id: Page.SETTINGS, label: 'Configurações', icon: Settings },
   ];
 

@@ -40,7 +40,8 @@ const Header: React.FC<HeaderProps> = ({
     [Page.CALENDAR]: 'Calendário',
     [Page.EXPENSES]: 'Estrutura de Gastos',
     [Page.CLIENTS]: 'Gestão de Clientes',
-    [Page.SALES]: 'Gestão de Vendas'
+    [Page.SALES]: 'Gestão de Vendas',
+    [Page.EMPLOYEES]: 'Gestão de Funcionários'
   };
 
   // Close menu when clicking outside

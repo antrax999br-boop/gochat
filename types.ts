@@ -7,7 +7,8 @@ export enum Page {
   CALENDAR = 'CALENDAR',
   EXPENSES = 'EXPENSES',
   CLIENTS = 'CLIENTS',
-  SALES = 'SALES'
+  SALES = 'SALES',
+  EMPLOYEES = 'EMPLOYEES'
 }
 
 export interface Service {
@@ -106,4 +107,19 @@ export interface NotificationItem {
   title: string;
   message: string;
   page?: Page;
+}
+
+export interface Employee {
+  id: string;
+  fullName: string;
+  cpf: string;
+  position: string;
+  department: string;
+  email: string;
+  phone: string;
+  salary: number;
+  hireDate: string;
+  status: 'active' | 'inactive' | 'vacation';
+  address?: string;
+  birthDate?: string;
 }
