@@ -14,7 +14,7 @@ import EmployeesScreen from './screens/EmployeesScreen';
 import Layout from './components/Layout';
 import Calculator from './components/Calculator';
 import { supabase } from './lib/supabase';
-import { Bell, X } from 'lucide-react';
+import { Bell, Lock, X } from 'lucide-react';
 
 const initialTransactions: Transaction[] = [
   { id: '1', description: 'Assinatura API WhatsApp', amount: 250, type: 'expense', date: '2023-10-05', month: 'Out', category: 'Software' },
@@ -38,6 +38,11 @@ const App: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isPasswordProtected, setIsPasswordProtected] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [requestedPage, setRequestedPage] = useState<Page | null>(null);
+  const [unlockedPages, setUnlockedPages] = useState<Set<Page>>(new Set());
 
   useEffect(() => {
     console.log("App Schumacher v1.1 - Supabase Sync Active");
@@ -191,14 +196,29 @@ const App: React.FC = () => {
       if (employeesData) {
         setEmployees(employeesData.map(emp => ({
           id: emp.id,
+          costCenter: emp.cost_center || '',
           fullName: emp.full_name,
-          cpf: emp.cpf,
           position: emp.position,
+          hireDate: emp.hire_date,
+          workSchedule: emp.work_schedule || '',
+          baseSalary: Number(emp.base_salary) || 0,
+          additionalPercent20: Number(emp.additional_percent_20) || 0,
+          attendance: Number(emp.attendance) || 0,
+          mealVoucher: Number(emp.meal_voucher) || 0,
+          foodVoucherPerDay: Number(emp.food_voucher_per_day) || 0,
+          foodVoucherTotal: Number(emp.food_voucher_total) || 0,
+          transportVoucherPerDay: Number(emp.transport_voucher_per_day) || 0,
+          transportVoucherTotal: Number(emp.transport_voucher_total) || 0,
+          absenceDays: Number(emp.absence_days) || 0,
+          absenceTotal: Number(emp.absence_total) || 0,
+          fuel: Number(emp.fuel) || 0,
+          carRental: Number(emp.car_rental) || 0,
+          observations: emp.observations || '',
+          cpf: emp.cpf,
           department: emp.department,
           email: emp.email,
           phone: emp.phone,
           salary: Number(emp.salary),
-          hireDate: emp.hire_date,
           status: emp.status,
           address: emp.address,
           birthDate: emp.birth_date
@@ -310,6 +330,20 @@ const App: React.FC = () => {
     setCurrentToast(notification);
   };
 
+  const PROTECTED_PAGES = [Page.FINANCE, Page.EXPENSES, Page.EMPLOYEES];
+  const CORRECT_PASSWORD = '1601';
+
+  const handleNavigate = (page: Page) => {
+    if (PROTECTED_PAGES.includes(page) && !unlockedPages.has(page)) {
+      setRequestedPage(page);
+      setIsPasswordProtected(true);
+      setPasswordInput('');
+      setPasswordError('');
+    } else {
+      setActivePage(page);
+    }
+  };
+
   const handleNotificationClick = (notification: NotificationItem) => {
     if (!viewedNotifications.includes(notification.id)) {
       const newViewed = [...viewedNotifications, notification.id];
@@ -318,7 +352,7 @@ const App: React.FC = () => {
     }
 
     if (notification.page) {
-      setActivePage(notification.page);
+      handleNavigate(notification.page);
     }
   };
 
@@ -411,6 +445,24 @@ const App: React.FC = () => {
     }
   };
 
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === CORRECT_PASSWORD) {
+      if (requestedPage) {
+        setUnlockedPages(prev => new Set(prev).add(requestedPage));
+        setActivePage(requestedPage);
+      }
+      setIsPasswordProtected(false);
+      setPasswordInput('');
+      setPasswordError('');
+      setRequestedPage(null);
+    } else {
+      setPasswordError('Senha incorreta. Tente novamente.');
+      setPasswordInput('');
+    }
+  };
+
   if (!user) {
     return <LoginScreen onLogin={handleLogin} />;
   }
@@ -460,7 +512,7 @@ const App: React.FC = () => {
     <Layout
       user={user}
       activePage={activePage}
-      onNavigate={setActivePage}
+      onNavigate={handleNavigate}
       onLogout={handleLogout}
       isDarkMode={isDarkMode}
       toggleDarkMode={toggleDarkMode}
@@ -499,6 +551,90 @@ const App: React.FC = () => {
             >
               <X className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Password Protection Modal */}
+      {isPasswordProtected && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md p-8 border border-slate-200 dark:border-slate-800 transform scale-100 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-100 dark:bg-emerald-500/10 rounded-xl">
+                  <Lock className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Área Protegida</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Digite a senha para continuar</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsPasswordProtected(false);
+                  setPasswordInput('');
+                  setPasswordError('');
+                  setRequestedPage(null);
+                }}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">
+                  Senha de Acesso
+                </label>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    setPasswordError('');
+                  }}
+                  autoFocus
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-4 px-4 text-center text-2xl font-bold tracking-widest focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                  placeholder="••••"
+                  maxLength={4}
+                />
+                {passwordError && (
+                  <p className="text-sm text-rose-500 font-medium mt-2 flex items-center gap-2">
+                    <X className="w-4 h-4" />
+                    {passwordError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPasswordProtected(false);
+                    setPasswordInput('');
+                    setPasswordError('');
+                    setRequestedPage(null);
+                  }}
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <Lock className="w-4 h-4" />
+                  Desbloquear
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+                <span className="font-bold">Páginas protegidas:</span> Financeiro, Estrutura de Gastos e Funcionários
+              </p>
+            </div>
           </div>
         </div>
       )}
