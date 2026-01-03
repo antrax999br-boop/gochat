@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Zap, ShieldCheck, Smartphone, CheckCircle, Loader2, LogOut, AlertCircle } from 'lucide-react';
-import { io, Socket } from 'socket.io-client';
+import { RefreshCw, Zap, ShieldCheck, Smartphone, CheckCircle, Loader2, LogOut, XCircle } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 
 const ConnectScreen: React.FC = () => {
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [qrCode, setQrCode] = useState<string>('');
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [connectionError, setConnectionError] = useState(false);
   const [useSimulation, setUseSimulation] = useState(false);
 
@@ -14,50 +12,58 @@ const ConnectScreen: React.FC = () => {
     if (useSimulation) return;
 
     const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-    const newSocket = io(backendUrl);
-    setSocket(newSocket);
 
-    // Timeout para detectar falha na conexão (Backend não rodando)
-    const connectionTimeout = setTimeout(() => {
-      if (!newSocket.connected) {
+    // Function to poll WhatsApp status and QR
+    const fetchWhatsAppStatus = async () => {
+      try {
+        const response = await fetch(`${backendUrl}/whatsapp/qrcode`);
+        if (!response.ok) throw new Error('Backend offline');
+
+        const data = await response.json();
+
+        if (data.connected) {
+          setStatus('connected');
+          setQrCode('');
+          setConnectionError(false);
+        } else {
+          if (data.qr) {
+            setQrCode(data.qr);
+            setStatus('disconnected'); // Ready to scan
+          } else {
+            setStatus('connecting'); // Waiting for QR generation
+          }
+          setConnectionError(false);
+        }
+      } catch (error) {
+        console.error('Error fetching WhatsApp status:', error);
         setConnectionError(true);
       }
-    }, 3000);
-
-    newSocket.on('connect', () => {
-      console.log('Connected to server');
-      setStatus('connecting');
-      setConnectionError(false);
-      clearTimeout(connectionTimeout);
-    });
-
-    newSocket.on('qr', (qr: string) => {
-      setQrCode(qr);
-      setStatus('disconnected'); // Ready to scan
-      setConnectionError(false);
-    });
-
-    newSocket.on('status', (newStatus: 'disconnected' | 'connecting' | 'connected') => {
-      setStatus(newStatus);
-    });
-
-    return () => {
-      newSocket.disconnect();
-      clearTimeout(connectionTimeout);
     };
+
+    // Initial fetch
+    fetchWhatsAppStatus();
+
+    // Set interval for 3 seconds as requested
+    const interval = setInterval(fetchWhatsAppStatus, 3000);
+
+    return () => clearInterval(interval);
   }, [useSimulation]);
 
   const handleDisconnect = () => {
+    // In a real scenario, we might want to call a logout endpoint.
+    // For now, we'll just reset local state or reload.
     if (useSimulation) {
       setStatus('disconnected');
-      setUseSimulation(false); // Retorna ao modo real para tentar conectar novamente
+      setUseSimulation(false);
       setConnectionError(false);
     } else {
       setStatus('disconnected');
       setQrCode('');
+      // Optionally notify backend to logout if such endpoint existed
       window.location.reload();
     }
   };
+
 
   const handleRefresh = () => {
     window.location.reload();
@@ -120,7 +126,7 @@ const ConnectScreen: React.FC = () => {
               {/* Real QR Code or Loading State */}
               {connectionError && !useSimulation ? (
                 <div className="flex flex-col items-center gap-4 text-center p-4">
-                  <AlertCircle className="w-12 h-12 text-red-500" />
+                  <XCircle className="w-12 h-12 text-red-500" />
                   <span className="text-sm font-bold text-slate-900 dark:text-white">Falha ao conectar ao Backend</span>
                   <p className="text-xs text-slate-500 max-w-[200px] mb-2">Não foi possível iniciar o servidor local. Verifique se o Git está instalado para rodar o backend.</p>
                   <button onClick={activateSimulation} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-emerald-600 font-bold text-xs transition-colors">
