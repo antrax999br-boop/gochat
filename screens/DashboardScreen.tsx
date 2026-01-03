@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   TrendingUp,
@@ -12,13 +13,14 @@ import {
   ArrowDownRight
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Transaction } from '../types';
+import { Transaction, ExpenseItem } from '../types';
 
 interface DashboardProps {
   transactions: Transaction[];
+  expenseItems: ExpenseItem[];
 }
 
-const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
+const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems }) => {
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -26,26 +28,30 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
     const lastMonthIndex = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
     const lastMonthStr = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][lastMonthIndex];
 
-    // Totals
-    const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    // Planned (Expense Structure) - monthly recurring
+    const plannedIncome = expenseItems.filter(i => i.type === 'income').reduce((acc, i) => acc + i.value, 0);
+    const plannedExpense = expenseItems.filter(i => i.type === 'expense').reduce((acc, i) => acc + i.value, 0);
+
+    // Totals (Actual + Planned)
+    const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0) + plannedIncome;
+    const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0) + plannedExpense;
     const totalBalance = totalIncome - totalExpense;
 
     // Monthly Stats
     const currentMonthTrans = transactions.filter(t => t.month === currentMonthStr);
     const lastMonthTrans = transactions.filter(t => t.month === lastMonthStr);
 
-    const monthIncome = currentMonthTrans.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const monthExpense = currentMonthTrans.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const monthIncome = currentMonthTrans.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0) + plannedIncome;
+    const monthExpense = currentMonthTrans.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0) + plannedExpense;
 
-    // Growth Calculation (Income vs Last Month)
-    const lastMonthIncome = lastMonthTrans.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    // Growth Calculation
+    const lastMonthIncome = lastMonthTrans.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0) + plannedIncome;
 
     let growthPercent = 0;
     if (lastMonthIncome > 0) {
       growthPercent = ((monthIncome - lastMonthIncome) / lastMonthIncome) * 100;
     } else if (monthIncome > 0) {
-      growthPercent = 100; // 0 to something is 100% growth essentially
+      growthPercent = 100;
     }
 
     const isPositiveGrowth = growthPercent >= 0;
@@ -59,36 +65,38 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
       isPositiveGrowth,
       balanceStatus
     };
-  }, [transactions]);
+  }, [transactions, expenseItems]);
 
   const chartData = useMemo(() => {
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+    const plannedIncome = expenseItems.filter(i => i.type === 'income').reduce((acc, i) => acc + i.value, 0);
+    const plannedExpense = expenseItems.filter(i => i.type === 'expense').reduce((acc, i) => acc + i.value, 0);
+
     return months.map(m => {
       const monthTrans = transactions.filter(t => t.month === m);
-      const income = monthTrans.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-      const expense = monthTrans.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+      const income = monthTrans.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0) + plannedIncome;
+      const expense = monthTrans.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0) + plannedExpense;
       return {
         name: m,
-        Saldo: income - expense, // Net Balance for the month
+        Saldo: income - expense,
         Receita: income,
         Despesa: expense
       };
-    }).filter(d => d.Receita > 0 || d.Despesa > 0 || d.Saldo !== 0); // Hide empty months? Or maybe show recent ones.
-  }, [transactions]);
+    }).filter(d => d.Receita > 0 || d.Despesa > 0 || d.Saldo !== 0);
+  }, [transactions, expenseItems]);
 
-  // Health Indicators
   const runwayMonths = stats.monthExpense > 0 ? (stats.totalBalance / stats.monthExpense).toFixed(1) : "Inf.";
   const profitMargin = stats.monthIncome > 0 ? (((stats.monthIncome - stats.monthExpense) / stats.monthIncome) * 100).toFixed(1) : "0";
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-32">
       <div>
         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">Dashboard Financeiro</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">Visão geral do crescimento e saúde financeira da Schumacher Tecnologia.</p>
+        <p className="text-slate-500 dark:text-slate-400 mt-1">Visão Geral (Real + Estrutura Fixa Planejada).</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Card 1: Saldo Total */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -109,7 +117,6 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
           </div>
         </div>
 
-        {/* Card 2: Receita Mensal */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -122,16 +129,11 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
               <TrendingUp className="w-6 h-6" />
             </div>
           </div>
-          <div className="flex items-center text-sm">
-            <span className={`font-bold flex items-center px-2 py-0.5 rounded-full ${stats.isPositiveGrowth ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-              {stats.isPositiveGrowth ? <ArrowUpRight className="w-3.5 h-3.5 mr-1" /> : <ArrowDownRight className="w-3.5 h-3.5 mr-1" />}
-              {stats.growthPercent}% Crescimento
-            </span>
-            <span className="text-slate-400 ml-2 font-medium text-[10px]">vs mês anterior</span>
+          <div className="flex items-center text-sm text-[10px] text-slate-400 font-bold uppercase">
+            Vendas + Estrutura Fixa
           </div>
         </div>
 
-        {/* Card 3: Despesas Mensais */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -144,12 +146,11 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
               <TrendingDown className="w-6 h-6" />
             </div>
           </div>
-          <div className="flex items-center text-sm">
-            <span className="text-slate-400 font-medium">Controle de custos</span>
+          <div className="flex items-center text-sm text-[10px] text-slate-400 font-bold uppercase">
+            Gasto Mensal Planejado
           </div>
         </div>
 
-        {/* Card 4: Lucro Líquido */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -171,12 +172,11 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Chart */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Balanço Financeiro</h3>
-              <p className="text-sm text-slate-500">evolução do saldo líquido mensal</p>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Balanço Consolidado</h3>
+              <p className="text-sm text-slate-500">Histórico de Saldo Mensal (Vendas + Gastos Estruturais)</p>
             </div>
           </div>
           <div className="flex-1 min-h-[300px] p-6">
@@ -200,11 +200,10 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
           </div>
         </div>
 
-        {/* Financial Health Indicators */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Saúde Financeira</h3>
-            <p className="text-sm text-slate-500">Indicadores chave de performance</p>
+            <p className="text-sm text-slate-500">Kpis de sustentabilidade em tempo real</p>
           </div>
           <div className="p-6 flex flex-col gap-4">
             {[
@@ -234,7 +233,6 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
                   </div>
                   {stats.totalBalance >= 0 ? <CheckCircle2 className="w-10 h-10 text-white/40" /> : <AlertCircle className="w-10 h-10 text-white/40" />}
                 </div>
-                <p className="relative z-10 text-[10px] text-white/70 font-bold uppercase tracking-widest mt-3">Baseado no histórico total</p>
               </div>
             </div>
           </div>
@@ -244,8 +242,8 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Últimas Transações</h3>
-            <p className="text-sm text-slate-500">Histórico recente de movimentações</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Últimas Transações (Real)</h3>
+            <p className="text-sm text-slate-500">Fluxo de caixa gerado por vendas e manuais</p>
           </div>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -265,9 +263,6 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions }) => {
               </div>
             </div>
           ))}
-          {transactions.length === 0 && (
-            <div className="col-span-4 text-center py-8 text-slate-400">Nenhuma transação registrada.</div>
-          )}
         </div>
       </div>
     </div>

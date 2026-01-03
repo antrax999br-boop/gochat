@@ -359,7 +359,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activePage) {
       case Page.DASHBOARD:
-        return <DashboardScreen transactions={transactions} />;
+        return <DashboardScreen transactions={transactions} expenseItems={expenseItems} />;
       case Page.CONNECT:
         return <ConnectScreen />;
       case Page.CONVERSATIONS:
@@ -367,7 +367,7 @@ const App: React.FC = () => {
       case Page.SETTINGS:
         return <SettingsScreen />;
       case Page.FINANCE:
-        return <FinanceScreen transactions={transactions} onUpdateTransactions={handleUpdateTransactions} fetchAllData={fetchAllData} />;
+        return <FinanceScreen transactions={transactions} expenseItems={expenseItems} onUpdateTransactions={handleUpdateTransactions} fetchAllData={fetchAllData} />;
       case Page.CALENDAR:
         return <CalendarScreen
           events={events}
@@ -389,7 +389,7 @@ const App: React.FC = () => {
           onUpdateServices={handleUpdateServices}
         />;
       default:
-        return <DashboardScreen transactions={transactions} />;
+        return <DashboardScreen transactions={transactions} expenseItems={expenseItems} />;
     }
   };
 

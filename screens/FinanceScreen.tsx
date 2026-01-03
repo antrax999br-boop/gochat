@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Transaction } from '../types';
+import { Transaction, ExpenseItem } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
+import { supabase } from '../lib/supabase';
 import {
   TrendingUp,
   TrendingDown,
@@ -32,42 +33,54 @@ import {
 
 const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-const initialTransactions: Transaction[] = [
-  { id: '1', description: 'Assinatura API WhatsApp', amount: 250, type: 'expense', date: '2023-10-05', month: 'Out', category: 'Software' },
-  { id: '2', description: 'Venda de Plano Premium', amount: 1500, type: 'income', date: '2023-10-10', month: 'Out', category: 'Vendas' },
-  { id: '3', description: 'Aluguel Escritório', amount: 800, type: 'expense', date: '2023-10-15', month: 'Out', category: 'Infra' },
-  { id: '4', description: 'Consultoria Especializada', amount: 3000, type: 'income', date: '2023-09-20', month: 'Set', category: 'Serviços' },
-  { id: '5', description: 'Marketing Digital', amount: 1200, type: 'expense', date: '2023-09-25', month: 'Set', category: 'Marketing' },
-];
-
 interface FinanceScreenProps {
   transactions: Transaction[];
+  expenseItems: ExpenseItem[];
   onUpdateTransactions: (t: Transaction[]) => void;
   fetchAllData: () => Promise<void>;
 }
 
-const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTransactions, fetchAllData }) => {
+const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItems, onUpdateTransactions, fetchAllData }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'income' | 'expense'>('income');
-  const [selectedMonth, setSelectedMonth] = useState('Out');
+  const [selectedMonth, setSelectedMonth] = useState(['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][new Date().getMonth()]);
   const [category, setCategory] = useState('Geral');
   const chartRef = useRef<HTMLDivElement>(null);
 
   const stats = useMemo(() => {
+    // Actual transactions
     const income = transactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc, 0);
     const expense = transactions.reduce((acc, t) => t.type === 'expense' ? acc + t.amount : acc, 0);
-    return { income, expense, balance: income - expense };
-  }, [transactions]);
+
+    // Add Planned (Expense Structure) - they are monthly recurring
+    const plannedIncome = expenseItems.filter(i => i.type === 'income').reduce((acc, i) => acc + i.value, 0);
+    const plannedExpense = expenseItems.filter(i => i.type === 'expense').reduce((acc, i) => acc + i.value, 0);
+
+    return {
+      income: income + plannedIncome,
+      expense: expense + plannedExpense,
+      balance: (income + plannedIncome) - (expense + plannedExpense)
+    };
+  }, [transactions, expenseItems]);
 
   const chartData = useMemo(() => {
     return months.map(m => {
       const monthTransactions = transactions.filter(t => t.month === m);
       const income = monthTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc, 0);
       const expense = monthTransactions.reduce((acc, t) => t.type === 'expense' ? acc + t.amount : acc, 0);
-      return { name: m, Lucro: income, Despesas: expense };
+
+      // Add planned items to every month as they represent the "Structure"
+      const plannedIncome = expenseItems.filter(i => i.type === 'income').reduce((acc, i) => acc + i.value, 0);
+      const plannedExpense = expenseItems.filter(i => i.type === 'expense').reduce((acc, i) => acc + i.value, 0);
+
+      return {
+        name: m,
+        Lucro: income + plannedIncome,
+        Despesas: expense + plannedExpense
+      };
     }).filter(d => d.Lucro > 0 || d.Despesas > 0);
-  }, [transactions]);
+  }, [transactions, expenseItems]);
 
   const handleExportReport = async () => {
     try {
@@ -86,10 +99,9 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
 
       // Capture Chart
       if (chartRef.current) {
-        // Temporarily change background to white for capture if dark mode (optional, but safer)
         const canvas = await html2canvas(chartRef.current, {
-          backgroundColor: null, // Transparent or existing
-          scale: 2 // Higher quality
+          backgroundColor: null,
+          scale: 2
         });
         const imgData = canvas.toDataURL('image/png');
         const imgWidth = 180;
@@ -103,7 +115,13 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
       const monthTransactions = transactions.filter(t => t.month === selectedMonth);
       const mIncome = monthTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc, 0);
       const mExpense = monthTransactions.reduce((acc, t) => t.type === 'expense' ? acc + t.amount : acc, 0);
-      const mBalance = mIncome - mExpense;
+
+      const plannedIncome = expenseItems.filter(i => i.type === 'income').reduce((acc, i) => acc + i.value, 0);
+      const plannedExpense = expenseItems.filter(i => i.type === 'expense').reduce((acc, i) => acc + i.value, 0);
+
+      const totalMIncome = mIncome + plannedIncome;
+      const totalMExpense = mExpense + plannedExpense;
+      const mBalance = totalMIncome - totalMExpense;
 
       doc.setFontSize(14);
       doc.setTextColor(33, 33, 33);
@@ -111,13 +129,13 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
       yPos += 8;
 
       doc.setFontSize(11);
-      doc.setTextColor(16, 185, 129); // Green
-      doc.text(`Entradas: R$ ${mIncome.toLocaleString()}`, 14, yPos);
+      doc.setTextColor(16, 185, 129);
+      doc.text(`Entradas: R$ ${totalMIncome.toLocaleString()}`, 14, yPos);
 
-      doc.setTextColor(244, 63, 94); // Red
-      doc.text(`Saídas: R$ ${mExpense.toLocaleString()}`, 70, yPos);
+      doc.setTextColor(244, 63, 94);
+      doc.text(`Saídas: R$ ${totalMExpense.toLocaleString()}`, 70, yPos);
 
-      doc.setTextColor(33, 33, 33); // Black
+      doc.setTextColor(33, 33, 33);
       doc.text(`Saldo: R$ ${mBalance.toLocaleString()}`, 130, yPos);
       yPos += 15;
 
@@ -125,13 +143,22 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
       autoTable(doc, {
         startY: yPos,
         head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']],
-        body: monthTransactions.map(t => [
-          new Date(t.date).toLocaleDateString(),
-          t.description,
-          t.category,
-          t.type === 'income' ? 'Entrada' : 'Saída',
-          `R$ ${t.amount.toLocaleString()}`
-        ]),
+        body: [
+          ...expenseItems.map(i => [
+            '-',
+            `[Estrutura] ${i.description}`,
+            'Mensal Fixa',
+            i.type === 'income' ? 'Entrada' : 'Saída',
+            `R$ ${i.value.toLocaleString()}`
+          ]),
+          ...monthTransactions.map(t => [
+            new Date(t.date).toLocaleDateString(),
+            t.description,
+            t.category,
+            t.type === 'income' ? 'Entrada' : 'Saída',
+            `R$ ${t.amount.toLocaleString()}`
+          ])
+        ],
         headStyles: { fillColor: [16, 185, 129] },
         styles: { fontSize: 10 },
         alternateRowStyles: { fillColor: [245, 245, 245] }
@@ -148,32 +175,41 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
     e.preventDefault();
     if (!description || !amount) return;
 
-    const newTransaction: Transaction = {
-      id: Date.now().toString(),
-      description,
-      amount: parseFloat(amount),
-      type,
-      date: new Date().toISOString().split('T')[0],
-      month: selectedMonth,
-      category
-    };
+    try {
+      const { error } = await supabase.from('transactions').insert({
+        description,
+        amount: parseFloat(amount),
+        type,
+        date: new Date().toISOString().split('T')[0],
+        month: selectedMonth,
+        category
+      });
 
-    onUpdateTransactions([]); // Refresh via App.tsx
-    await fetchAllData();
-    setDescription('');
-    setAmount('');
+      if (error) throw error;
+
+      await fetchAllData();
+      setDescription('');
+      setAmount('');
+      alert('Transação registrada com sucesso!');
+    } catch (error) {
+      console.error('Error adding transaction:', error);
+      alert('Erro ao registrar transação.');
+    }
   };
 
-  const removeTransaction = (id: string) => {
-    onUpdateTransactions(transactions.filter(t => t.id !== id));
+  const removeTransaction = async (id: string) => {
+    if (window.confirm('Excluir esta transação?')) {
+      await supabase.from('transactions').delete().eq('id', id);
+      await fetchAllData();
+    }
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-32">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Financeiro</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Gestão de balancete e fluxo de caixa da sua operação.</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Gestão de balancete e fluxo de caixa (Real + Estrutura Planejada).</p>
         </div>
         <div className="flex gap-3">
           <button className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 shadow-sm">
@@ -196,8 +232,9 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
           <p className="text-sm font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">Saldo Geral</p>
           <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-2 tracking-tight">R$ {stats.balance.toLocaleString()}</h3>
           <div className="mt-4 flex items-center gap-2">
-            <span className="text-xs font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">+R$ 1.200</span>
-            <span className="text-[10px] text-slate-400 font-medium">este mês</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stats.balance >= 0 ? 'text-emerald-500 bg-emerald-50' : 'text-rose-500 bg-rose-50'}`}>
+              {stats.balance >= 0 ? 'Consolidado Positivo' : 'Alerta de Déficit'}
+            </span>
           </div>
         </div>
 
@@ -206,9 +243,7 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
             <ArrowUpRight className="w-4 h-4 text-emerald-500" /> Total Entradas
           </p>
           <h3 className="text-3xl font-black text-emerald-500 mt-2 tracking-tight">R$ {stats.income.toLocaleString()}</h3>
-          <div className="mt-4 w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-500 w-[75%]"></div>
-          </div>
+          <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase italic">Incluindo Planejamento Mensal</p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -216,9 +251,7 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
             <ArrowDownLeft className="w-4 h-4 text-rose-500" /> Total Saídas
           </p>
           <h3 className="text-3xl font-black text-rose-500 mt-2 tracking-tight">R$ {stats.expense.toLocaleString()}</h3>
-          <div className="mt-4 w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full bg-rose-500 w-[25%]"></div>
-          </div>
+          <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase italic">Incluindo Despesas de Estrutura</p>
         </div>
       </div>
 
@@ -312,7 +345,7 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
               </div>
               <div>
                 <h2 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">Lucro vs. Despesas</h2>
-                <p className="text-xs text-slate-500 font-medium">Comparativo mensal acumulado</p>
+                <p className="text-xs text-slate-500 font-medium">Vendas + Planejamento de Estrutura</p>
               </div>
             </div>
           </div>
@@ -349,7 +382,7 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, onUpdateTra
 
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">Últimas Movimentações</h3>
+          <h3 className="text-lg font-extrabold text-slate-900 dark:text-white tracking-tight">Últimas Movimentações (Reais)</h3>
           <div className="flex items-center gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
