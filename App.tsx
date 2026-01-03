@@ -52,7 +52,7 @@ const App: React.FC = () => {
     });
 
     // 2. Auth Listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUser({
           id: session.user.id,
@@ -60,6 +60,11 @@ const App: React.FC = () => {
           email: session.user.email || '',
         });
         fetchAllData();
+
+        // Push to dashboard ONLY on sign in event to avoid interrupting active sessions on refresh
+        if (event === 'SIGNED_IN') {
+          setActivePage(Page.DASHBOARD);
+        }
       } else {
         setUser(null);
         clearAllData();
@@ -365,7 +370,7 @@ const App: React.FC = () => {
 
   const handleLogin = (userData: User) => {
     setUser(userData);
-    // Session is handled by Supabase, but we can keep metadata in state
+    setActivePage(Page.DASHBOARD);
   };
 
   const handleLogout = async () => {
