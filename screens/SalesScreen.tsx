@@ -267,7 +267,8 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                 `R$ ${item.unitPrice.toLocaleString()}`,
                 `R$ ${item.total.toLocaleString()}`
             ]),
-            headStyles: { fillColor: [16, 185, 129], halign: 'center' },
+            headStyles: { fillColor: [16, 185, 129], halign: 'center', textColor: [255, 255, 255] },
+            bodyStyles: { textColor: [0, 0, 0] },
             styles: { fontSize: 10, cellPadding: 5 },
             columnStyles: {
                 0: { cellWidth: 80 },
@@ -277,10 +278,10 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
             },
             alternateRowStyles: { fillColor: [245, 255, 250] },
             foot: [[
-                { content: 'VALOR TOTAL DO PEDIDO:', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } },
-                { content: `R$ ${quote.total.toLocaleString()}`, styles: { halign: 'right', fontStyle: 'bold' } }
+                { content: 'VALOR TOTAL DO PEDIDO:', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold', textColor: [0, 0, 0] } },
+                { content: `R$ ${quote.total.toLocaleString()}`, styles: { halign: 'right', fontStyle: 'bold', textColor: [0, 0, 0] } }
             ]],
-            footStyles: { fillColor: [240, 240, 240] }
+            footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] }
         });
 
         const finalY = (doc as any).lastAutoTable.finalY + 40;
