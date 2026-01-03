@@ -43,6 +43,7 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser({
+          id: session.user.id,
           username: session.user.user_metadata.display_name || session.user.email?.split('@')[0] || 'User',
           email: session.user.email || '',
         });
@@ -54,6 +55,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser({
+          id: session.user.id,
           username: session.user.user_metadata.display_name || session.user.email?.split('@')[0] || 'User',
           email: session.user.email || '',
         });
@@ -363,7 +365,7 @@ const App: React.FC = () => {
       case Page.CONNECT:
         return <ConnectScreen />;
       case Page.CONVERSATIONS:
-        return <ConversationsScreen />;
+        return user ? <ConversationsScreen currentUser={user} /> : null;
       case Page.SETTINGS:
         return <SettingsScreen />;
       case Page.FINANCE:
