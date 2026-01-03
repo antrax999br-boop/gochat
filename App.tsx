@@ -70,13 +70,19 @@ const App: React.FC = () => {
       document.documentElement.classList.add('dark');
     }
 
-    // Load viewed notifications
-    const savedViewed = localStorage.getItem('schumacher_viewed_notifications');
-    if (savedViewed) {
-      setViewedNotifications(JSON.parse(savedViewed));
-    }
+    // 3. Real-time Changes Listener
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+        console.log("Real-time update received from database...");
+        fetchAllData();
+      })
+      .subscribe();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchAllData = async () => {
