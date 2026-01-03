@@ -18,6 +18,7 @@ import {
     Building2,
     CheckCircle2,
     Clock,
+    Calendar,
     User,
     Check,
     Pencil,
@@ -216,7 +217,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
     };
 
     const generateQuotePDF = (quote: Quote) => {
-        const client = clients.find(c => c.id === quote.client_id || c.id === quote.clientId);
+        const client = clients.find(c => c.id === quote.clientId);
         const doc = new jsPDF();
 
         // Header
