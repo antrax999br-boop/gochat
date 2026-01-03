@@ -162,6 +162,22 @@ const App: React.FC = () => {
           value: Number(e.value)
         })));
       }
+
+      // Fetch Calendar Events
+      const { data: eventsData } = await supabase.from('calendar_events').select('*').order('date');
+      if (eventsData) {
+        const mappedEvents: CalendarEvent[] = eventsData.map(e => ({
+          id: e.id,
+          title: e.title,
+          description: e.description,
+          date: e.date,
+          type: e.type as any,
+          completed: e.completed,
+          amount: e.amount ? Number(e.amount) : undefined
+        }));
+        setEvents(mappedEvents);
+        checkNotifications(mappedEvents);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -173,6 +189,7 @@ const App: React.FC = () => {
     setTransactions([]);
     setQuotes([]);
     setExpenseItems([]);
+    setEvents([]);
   };
 
   const handleUpdateTransactions = async (newTransactions: Transaction[]) => {
@@ -314,27 +331,36 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveEvents = (newEvents: CalendarEvent[]) => {
-    setEvents(newEvents);
-    localStorage.setItem('schumacher_events', JSON.stringify(newEvents));
+  const handleAddEvent = async (event: CalendarEvent) => {
+    const { id, ...eventData } = event;
+    const { error } = await supabase.from('calendar_events').insert(eventData);
+    if (error) {
+      console.error('Error adding event:', error);
+      alert('Erro ao salvar evento no calendário.');
+    } else {
+      await fetchAllData();
+    }
   };
 
-  const handleAddEvent = (event: CalendarEvent) => {
-    const newEvents = [...events, event];
-    handleSaveEvents(newEvents);
-    checkNotifications(newEvents);
+  const handleUpdateEvent = async (updatedEvent: CalendarEvent) => {
+    const { id, ...eventData } = updatedEvent;
+    const { error } = await supabase.from('calendar_events').update(eventData).eq('id', id);
+    if (error) {
+      console.error('Error updating event:', error);
+      alert('Erro ao atualizar evento.');
+    } else {
+      await fetchAllData();
+    }
   };
 
-  const handleUpdateEvent = (updatedEvent: CalendarEvent) => {
-    const newEvents = events.map(e => e.id === updatedEvent.id ? updatedEvent : e);
-    handleSaveEvents(newEvents);
-    checkNotifications(newEvents);
-  };
-
-  const handleDeleteEvent = (id: string) => {
-    const newEvents = events.filter(e => e.id !== id);
-    handleSaveEvents(newEvents);
-    checkNotifications(newEvents);
+  const handleDeleteEvent = async (id: string) => {
+    const { error } = await supabase.from('calendar_events').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting event:', error);
+      alert('Erro ao excluir evento.');
+    } else {
+      await fetchAllData();
+    }
   };
 
   const handleLogin = (userData: User) => {
