@@ -6,11 +6,11 @@
         "start": "node index.js"
     },
     "dependencies": {
-        "@whiskeysockets/baileys": "^6.7.9",
+        "@whiskeysockets/baileys": "^7.0.0-rc.9",
+        "cors": "^2.8.5",
         "express": "^4.21.2",
-        "qrcode": "^1.5.4",
-        "socket.io": "^4.8.1",
         "pino": "^9.6.0",
-        "cors": "^2.8.5"
+        "qrcode": "^1.5.4",
+        "socket.io": "^4.8.1"
     }
 }

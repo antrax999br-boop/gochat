@@ -1,4 +1,8 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import makeWASocket, {
+    DisconnectReason,
+    useMultiFileAuthState,
+    fetchLatestBaileysVersion
+} from '@whiskeysockets/baileys';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -18,7 +22,16 @@ const AUTH_FOLDER = path.join(__dirname, 'auth_info_baileys');
 app.use(cors());
 app.use(express.json());
 
-// Log requests to help debugging
+// --- MANUAL STATE MANAGEMENT ---
+let currentQR = null;
+let currentStatus = 'disconnected';
+let sock = null;
+
+// Simple in-memory store for chats and messages
+const chats = new Map();
+const messages = new Map();
+
+// Log requests
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
@@ -28,11 +41,6 @@ const server = createServer(app);
 const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
-
-// --- STATE MANAGEMENT ---
-let currentQR = null;
-let currentStatus = 'disconnected';
-let sock = null;
 
 // --- WHATSAPP SERVICE ---
 async function connectToWhatsApp() {
@@ -54,7 +62,6 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            console.log('--- NOVO QR CODE GERADO ---');
             currentQR = qr;
             currentStatus = 'disconnected';
             io.emit('qr', qr);
@@ -63,17 +70,11 @@ async function connectToWhatsApp() {
         if (connection === 'close') {
             const statusCode = (lastDisconnect?.error)?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
             console.log(`Conexão fechada. Código: ${statusCode}. Reconectando: ${shouldReconnect}`);
-
             currentStatus = 'disconnected';
             currentQR = null;
             io.emit('status', 'disconnected');
-
-            if (shouldReconnect) {
-                console.log('Tentando reconectar em 5 segundos...');
-                setTimeout(connectToWhatsApp, 5000); // Adicionado delay para evitar loops infinitos rápidos
-            }
+            if (shouldReconnect) setTimeout(connectToWhatsApp, 5000);
         } else if (connection === 'open') {
             console.log('--- WHATSAPP CONECTADO COM SUCESSO ---');
             currentStatus = 'connected';
@@ -82,75 +83,145 @@ async function connectToWhatsApp() {
         }
     });
 
+    // Listen for initial history
+    sock.ev.on('messaging-history.set', ({ chats: initialChats, messages: initialMessages, isLatest }) => {
+        console.log(`Recebido histórico inicial: ${initialChats.length} conversas, ${initialMessages.length} mensagens`);
+        for (const chat of initialChats) {
+            chats.set(chat.id, {
+                id: chat.id,
+                name: chat.name || chat.id.split('@')[0],
+                lastMessage: 'Histórico carregado',
+                conversationTimestamp: chat.conversationTimestamp,
+                unreadCount: chat.unreadCount || 0
+            });
+        }
+        for (const msg of initialMessages) {
+            const jid = msg.key.remoteJid;
+            if (!jid) continue;
+            const chatMessages = messages.get(jid) || [];
+            chatMessages.push({
+                key: msg.key,
+                message: msg.message,
+                pushName: msg.pushName,
+                messageTimestamp: msg.messageTimestamp
+            });
+            messages.set(jid, chatMessages);
+        }
+    });
+
+    sock.ev.on('chats.upsert', (newChats) => {
+        for (const chat of newChats) {
+            const existing = chats.get(chat.id) || {};
+            chats.set(chat.id, { ...existing, ...chat });
+        }
+    });
+
+    sock.ev.on('messages.upsert', async (m) => {
+        if (m.type === 'notify') {
+            for (const msg of m.messages) {
+                const jid = msg.key.remoteJid;
+                if (!jid) continue;
+
+                // Extract message body
+                const body = msg.message?.conversation ||
+                    msg.message?.extendedTextMessage?.text ||
+                    msg.message?.buttonsResponseMessage?.selectedButtonId ||
+                    msg.message?.listResponseMessage?.title ||
+                    (msg.message?.imageMessage ? '📷 Imagem' :
+                        msg.message?.videoMessage ? '🎥 Vídeo' :
+                            msg.message?.audioMessage ? '🎵 Áudio' :
+                                msg.message?.documentMessage ? '📄 Documento' : '📎 Mídia');
+
+                // Update chat list
+                const chat = chats.get(jid) || { id: jid, name: msg.pushName || jid.split('@')[0], unreadCount: 0 };
+                chat.lastMessage = body;
+                chat.conversationTimestamp = msg.messageTimestamp;
+                if (!msg.key.fromMe) chat.unreadCount++;
+                chats.set(jid, chat);
+
+                // Update message list
+                const chatMessages = messages.get(jid) || [];
+                chatMessages.push({
+                    key: msg.key,
+                    message: msg.message,
+                    pushName: msg.pushName,
+                    messageTimestamp: msg.messageTimestamp
+                });
+                // Keep only last 100 messages per chat to save memory
+                if (chatMessages.length > 100) chatMessages.shift();
+                messages.set(jid, chatMessages);
+
+                // Emit real-time update
+                io.emit('new_message', {
+                    jid: jid,
+                    pushName: msg.pushName,
+                    message: body,
+                    timestamp: msg.messageTimestamp,
+                    fromMe: msg.key.fromMe
+                });
+            }
+        }
+    });
+
     return sock;
 }
 
 // --- CONTROLLERS / ROUTES ---
 
-/**
- * Health Check
- */
 app.get('/health', (req, res) => {
     res.json({ ok: true, status: currentStatus, timestamp: new Date().toISOString() });
 });
 
-/**
- * Get current connection status
- */
 app.get('/whatsapp/status', (req, res) => {
     res.json({ connected: currentStatus === 'connected' });
 });
 
-/**
- * Get QR Code or connection status
- */
 app.get('/whatsapp/qrcode', (req, res) => {
-    res.json({
-        connected: currentStatus === 'connected',
-        qr: currentQR
-    });
+    res.json({ connected: currentStatus === 'connected', qr: currentQR });
 });
 
-/**
- * Send a message
- */
+app.get('/whatsapp/chats', (req, res) => {
+    if (currentStatus !== 'connected') return res.status(400).json({ error: 'WhatsApp offline' });
+    const chatList = Array.from(chats.values()).sort((a, b) => (b.conversationTimestamp || 0) - (a.conversationTimestamp || 0));
+    res.json(chatList);
+});
+
+app.get('/whatsapp/messages/:jid', (req, res) => {
+    if (currentStatus !== 'connected') return res.status(400).json({ error: 'WhatsApp offline' });
+    const { jid } = req.params;
+    const chatMessages = messages.get(jid) || [];
+    res.json(chatMessages);
+});
+
 app.post('/whatsapp/send', async (req, res) => {
     const { to, message } = req.body;
-
-    if (currentStatus !== 'connected' || !sock) {
-        return res.status(400).json({ error: 'WhatsApp não está conectado' });
-    }
-
-    if (!to || !message) {
-        return res.status(400).json({ error: 'Destinatário (to) e mensagem são obrigatórios' });
-    }
+    if (currentStatus !== 'connected' || !sock) return res.status(400).json({ error: 'WhatsApp offline' });
 
     try {
-        const jid = to.replace(/\D/g, '') + '@s.whatsapp.net';
-        await sock.sendMessage(jid, { text: message });
+        let jid = to;
+        if (!jid.includes('@')) jid = to.replace(/\D/g, '') + '@s.whatsapp.net';
+
+        const sentMsg = await sock.sendMessage(jid, { text: message });
+
+        // Optimistically update local message store
+        const chatMessages = messages.get(jid) || [];
+        chatMessages.push(sentMsg);
+        messages.set(jid, chatMessages);
+
         res.json({ success: true });
     } catch (error) {
-        console.error('Erro ao enviar mensagem:', error);
-        res.status(500).json({ error: 'Falha ao enviar mensagem' });
+        console.error('Erro ao enviar:', error);
+        res.status(500).json({ error: 'Falha ao enviar' });
     }
 });
 
-// --- SOCKET HANDLER (EXTRA) ---
 io.on('connection', (socket) => {
     socket.emit('status', currentStatus);
     if (currentQR) socket.emit('qr', currentQR);
 });
 
-// --- STARTUP ---
-connectToWhatsApp().catch(err => {
-    console.error("Erro crítico ao inicializar Baileys:", err);
-    // Não encerra o processo para que o servidor Express continue vivo
-});
+connectToWhatsApp().catch(err => console.error("Erro crítico:", err));
 
-server.listen(PORT, '0.0.0.0', () => { // Explicitly listen on all interfaces
-    console.log(`\n========================================`);
-    console.log(`Backend WhatsApp Ativo: http://localhost:${PORT}`);
-    console.log(`Endpoint de Saúde: http://localhost:${PORT}/health`);
-    console.log(`========================================\n`);
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Backend WhatsApp Ativo na porta ${PORT}`);
 });
-
