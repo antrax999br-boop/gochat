@@ -13,7 +13,8 @@ import {
   Check,
   User,
   MessageCircle,
-  Users
+  Users,
+  RefreshCw
 } from 'lucide-react';
 
 interface Profile {
@@ -44,56 +45,70 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'users' | 'groups'>('users');
+  const [isLoading, setIsLoading] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // 1. Fetch Profiles
+  // Refs to maintain stable values for the Realtime closure
+  const selectedProfileRef = useRef<Profile | null>(null);
+  const activeTabRef = useRef<'users' | 'groups'>('users');
+
   useEffect(() => {
-    const fetchProfiles = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .neq('id', currentUser.id)
-        .order('username');
+    selectedProfileRef.current = selectedProfile;
+  }, [selectedProfile]);
 
-      if (data) setProfiles(data);
-      if (error) console.error('Error fetching profiles:', error);
-    };
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
+  // 1. Fetch Profiles
+  const fetchProfiles = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .neq('id', currentUser.id)
+      .order('username');
+
+    if (data) setProfiles(data);
+    if (error) console.error('Error fetching profiles:', error);
+  };
+
+  useEffect(() => {
     fetchProfiles();
   }, [currentUser.id]);
 
-  // 2. Fetch Messages on Select
+  // 2. Fetch Messages
+  const fetchMessages = async () => {
+    if (activeTab === 'users' && !selectedProfile) {
+      setMessages([]);
+      return;
+    }
+
+    setIsLoading(true);
+    let query = supabase.from('chat_messages').select('*');
+
+    if (activeTab === 'users' && selectedProfile) {
+      query = query.or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedProfile.id}),and(sender_id.eq.${selectedProfile.id},receiver_id.eq.${currentUser.id})`);
+    } else {
+      query = query.eq('channel_id', 'general');
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: true });
+
+    if (data) setMessages(data);
+    if (error) console.error('Error fetching messages:', error);
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    const fetchMessages = async () => {
-      if (activeTab === 'users' && !selectedProfile) {
-        setMessages([]);
-        return;
-      }
-
-      let query = supabase.from('chat_messages').select('*');
-
-      if (activeTab === 'users' && selectedProfile) {
-        // Private chat logic: (Me -> Him) OR (Him -> Me)
-        query = query.or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedProfile.id}),and(sender_id.eq.${selectedProfile.id},receiver_id.eq.${currentUser.id})`);
-      } else {
-        // Group chat
-        query = query.eq('channel_id', 'general');
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: true });
-
-      if (data) setMessages(data);
-      if (error) console.error('Error fetching messages:', error);
-    };
-
     fetchMessages();
   }, [selectedProfile, activeTab, currentUser.id]);
 
-  // 3. Real-time Subscription (Managed in a separate useEffect to avoid race conditions during state reset)
+  // 3. Stable Real-time Subscription
   useEffect(() => {
-    // We listen to ALL messages globally for the chat component
+    console.log("Starting Chat Realtime Subscription...");
+
     const channel = supabase
-      .channel('internal-chat-sync')
+      .channel('chat-global-sync')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -101,11 +116,14 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
       }, (payload) => {
         const m = payload.new as ChatMessage;
 
-        // Check if message belongs to current focused view
-        const isForGeneral = activeTab === 'groups' && m.channel_id === 'general';
-        const isForSelectedUser = activeTab === 'users' && selectedProfile && (
-          (m.sender_id === currentUser.id && m.receiver_id === selectedProfile.id) ||
-          (m.sender_id === selectedProfile.id && m.receiver_id === currentUser.id)
+        // Use REFS to get current state without re-subscribing
+        const currentTab = activeTabRef.current;
+        const currentProfile = selectedProfileRef.current;
+
+        const isForGeneral = currentTab === 'groups' && m.channel_id === 'general';
+        const isForSelectedUser = currentTab === 'users' && currentProfile && (
+          (m.sender_id === currentUser.id && m.receiver_id === currentProfile.id) ||
+          (m.sender_id === currentProfile.id && m.receiver_id === currentUser.id)
         );
 
         if (isForGeneral || isForSelectedUser) {
@@ -115,12 +133,15 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
           });
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Chat sync status:", status);
+      });
 
     return () => {
+      console.log("Cleaning up Chat Realtime...");
       supabase.removeChannel(channel);
     };
-  }, [selectedProfile, activeTab, currentUser.id]);
+  }, [currentUser.id]); // Only depends on user, stays alive across tab/profile switches
 
   // Auto-scroll
   useEffect(() => {
@@ -137,11 +158,11 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
     const messageData = {
       sender_id: currentUser.id,
       receiver_id: activeTab === 'users' ? selectedProfile?.id : null,
-      channel_id: activeTab === 'groups' ? 'general' : 'private', // 'private' just to tag non-general
+      channel_id: activeTab === 'groups' ? 'general' : 'private',
       content: text,
     };
 
-    // Optimistic Update: Add message immediately for better speed
+    // Optimistic
     const tempId = 'temp-' + Date.now();
     const optimisticMsg: ChatMessage = {
       id: tempId,
@@ -155,12 +176,9 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
     const { data, error } = await supabase.from('chat_messages').insert(messageData).select().single();
 
     if (error) {
-      console.error('Error sending message:', error);
-      // Remove optimistic message on error
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      alert('Erro ao enviar mensagem.');
+      alert('Erro ao enviar.');
     } else if (data) {
-      // Replace optimistic message with real message from DB to sync correct ID and timestamp
       setMessages(prev => prev.map(m => m.id === tempId ? data : m));
     }
   };
@@ -223,7 +241,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                   </div>
                   <div className="flex-1">
                     <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">Geral (Equipe)</h4>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Comunidade</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Sincronizado</p>
                   </div>
                 </div>
               </div>
@@ -244,7 +262,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-extrabold text-slate-900 dark:text-white truncate tracking-tight">{profile.username}</h4>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-black tracking-widest">Funcionário</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-black tracking-widest">Ativo</p>
                   </div>
                 </div>
               </div>
@@ -257,18 +275,27 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
           <div className="flex-1 flex flex-col bg-slate-50/30 dark:bg-slate-900/10">
             <div className="h-20 px-8 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-4">
-                <div className={`w-11 h-11 rounded-2xl ${activeTab === 'groups' ? 'bg-blue-500 text-white' : 'bg-emerald-500 text-white'} flex items-center justify-center font-black text-sm border border-opacity-20 shadow-md`}>
+                <div className={`w-11 h-11 rounded-2xl ${activeTab === 'groups' ? 'bg-blue-500 text-white' : 'bg-emerald-500 text-white'} flex items-center justify-center font-black text-sm shadow-md`}>
                   {activeTab === 'groups' ? 'G' : selectedProfile?.username.substring(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 dark:text-white leading-tight tracking-tight">
-                    {activeTab === 'groups' ? 'Chat Geral Schumacher' : selectedProfile?.username}
+                    {activeTab === 'groups' ? 'Chat Geral Equipe' : selectedProfile?.username}
                   </h3>
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Online</p>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Real-time ativo</p>
                   </div>
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchMessages}
+                  className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-xl transition-all"
+                  title="Forçar Atualização"
+                >
+                  <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin text-emerald-500' : ''}`} />
+                </button>
               </div>
             </div>
 
@@ -294,30 +321,24 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      {isMe && !msg.id.startsWith('temp-') && (
-                        <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+                      {isMe && (
+                        <CheckCheck className="w-3.5 h-3.5 text-emerald-500 opacity-50" />
                       )}
                     </div>
                   </div>
                 );
               })}
-              {messages.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50">
-                  <MessageCircle className="w-12 h-12 mb-4 animate-bounce" />
-                  <p className="text-sm font-bold uppercase tracking-widest italic">Inicie esta conversa!</p>
-                </div>
-              )}
             </div>
 
             <div className="p-6 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
               <form onSubmit={handleSendMessage} className="flex items-end gap-3 max-w-5xl mx-auto">
-                <div className="flex-1 relative">
+                <div className="flex-1">
                   <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Falar com a equipe..."
-                    className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm rounded-2xl py-4 pl-6 pr-14 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all dark:text-white"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm rounded-2xl py-4 px-6 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all dark:text-white"
                   />
                 </div>
                 <button
@@ -332,7 +353,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-slate-50/30 dark:bg-slate-900/10">
-            <div className="w-24 h-24 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center text-emerald-500 mb-8 border-4 border-emerald-500/5 rotate-3 shadow-sm">
+            <div className="w-24 h-24 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center text-emerald-500 mb-8 border-4 border-emerald-500/5">
               <MessageCircle className="w-12 h-12" />
             </div>
             <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">Schumacher Chat</h3>
