@@ -14,13 +14,10 @@ import {
     ChevronRight,
     Save,
     X,
-    CreditCard,
     Building2,
     CheckCircle2,
     Clock,
     Calendar,
-    User,
-    Check,
     Pencil,
     Minus
 } from 'lucide-react';
@@ -29,12 +26,14 @@ interface SalesScreenProps {
     clients: Client[];
     quotes: Quote[];
     services: Service[];
-    onUpdateQuotes: (quotes: Quote[]) => void;
+    onUpdateQuotes: () => void;
+    onDeleteQuote: (id: string) => void;
     onApproveQuote: (quote: Quote) => void;
     onUpdateServices: (services: Service[]) => void;
+    fetchAllData: () => void;
 }
 
-const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, onUpdateQuotes, onApproveQuote, onUpdateServices }) => {
+const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, onUpdateQuotes, onDeleteQuote, onApproveQuote, onUpdateServices, fetchAllData }) => {
 
     const [showQuoteModal, setShowQuoteModal] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
@@ -191,12 +190,12 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                 await supabase.from('quote_items').insert(itemsToInsert);
             }
 
-            onUpdateQuotes([]); // Trigger refresh in App.tsx
+            fetchAllData(); // Correctly refresh data without deleting everything
             setShowQuoteModal(false);
             resetForm();
         } catch (error) {
             console.error('Error saving quote:', error);
-            alert('Erro ao salvar orçamento. Verifique sua conexão.');
+            alert('Erro ao salvar orçamento.');
         }
     };
 
@@ -209,9 +208,9 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         setShowQuoteModal(true);
     };
 
-    const handleDeleteQuote = (id: string) => {
-        if (window.confirm('Excluir este orçamento permanentemente?')) {
-            onUpdateQuotes(quotes.filter(q => q.id !== id));
+    const handleDeleteQuoteCall = (id: string) => {
+        if (window.confirm('Excluir este orçamento permanentemente? Todas as informações de itens e status serão removidas.')) {
+            onDeleteQuote(id);
             setSelectedQuote(null);
         }
     };
@@ -232,7 +231,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text('SOLICITAÇÃO DE LIBERAÇÃO DE SERVIÇO', 14, 33);
-        doc.text(`Orçamento #${quote.id.slice(-6).toUpperCase()}`, 150, 25);
+        doc.text(`Pedido #${quote.id.slice(-6).toUpperCase()}`, 150, 25);
         doc.text(`Data: ${new Date(quote.date).toLocaleDateString()}`, 150, 31);
 
         // Body section 1: Client Data
@@ -295,29 +294,15 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         doc.text('RESPONSÁVEL PELA LIBERAÇÃO', 25, finalY + 5);
         doc.text('ASSINATURA DO CLIENTE', 135, finalY + 5);
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.text('(Assinatura e Carimbo)', 40, finalY + 10);
-
-        // Footer message
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text('Este documento formaliza a liberação do serviço e autoriza o faturamento conforme condições comerciais acertadas.', 105, 285, { align: 'center' });
-
         doc.save(`Pedido_${client?.companyName || 'Cliente'}_${quote.id.slice(-4)}.pdf`);
     };
 
     const handleApprove = async (quote: Quote) => {
         if (window.confirm(`Confirmar aprovação do orçamento para ${quote.clientName}? Isso gerará o PDF de liberação e registrará a entrada no financeiro.`)) {
             try {
-                // 1. Approve in DB-level
                 await onApproveQuote(quote);
-
-                // 2. Generate PDF
                 generateQuotePDF(quote);
-
                 setSelectedQuote(null);
-                alert('Venda aprovada e PDF de liberação gerado!');
             } catch (error) {
                 console.error('Failure in approval flow:', error);
                 alert('Erro ao aprovar venda.');
@@ -358,7 +343,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                     placeholder="Buscar orçamentos por cliente..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                    className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white font-medium"
                 />
             </div>
 
@@ -367,15 +352,17 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                     <div
                         key={quote.id}
                         onClick={() => setSelectedQuote(quote)}
-                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group relative"
                     >
                         <div className="flex justify-between items-start mb-4">
                             <div className={`p-3 rounded-xl ${quote.status === 'approved' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10' : 'bg-amber-50 text-amber-600 dark:bg-amber-500/10'}`}>
                                 <FileText className="w-6 h-6" />
                             </div>
-                            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full ${quote.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                {quote.status === 'approved' ? 'Aprovado' : 'Aguardando'}
-                            </span>
+                            <div className="flex gap-2 items-center">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full ${quote.status === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
+                                    {quote.status === 'approved' ? 'Aprovado' : 'Aguardando'}
+                                </span>
+                            </div>
                         </div>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate">{quote.clientName}</h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{new Date(quote.date).toLocaleDateString()}</p>
@@ -397,13 +384,117 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                 )}
             </div>
 
-            {/* Quote Creation/Edit Modal */}
+            {/* Modal de Detalhes - Onde permitimos excluir tudo inclusive aprovados */}
+            {selectedQuote && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800">
+                        <div className="relative h-32 bg-emerald-500 p-8">
+                            <button onClick={() => setSelectedQuote(null)} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg backdrop-blur-md transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
+                            <h2 className="text-2xl font-black text-white tracking-tight">Detalhes do Pedido</h2>
+                            <p className="text-emerald-100 opacity-80 text-sm font-bold uppercase tracking-widest">#{selectedQuote.id.slice(-6)}</p>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+                                        <Building2 className="w-8 h-8 text-emerald-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Empresa</p>
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase leading-tight">{selectedQuote.clientName}</h3>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteQuoteCall(selectedQuote.id)}
+                                    className="p-3 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-all flex items-center gap-2 font-bold text-xs"
+                                    title="Excluir Permanentemente"
+                                >
+                                    <Trash2 className="w-4 h-4" /> Excluir
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center gap-3">
+                                    <Calendar className="w-5 h-5 text-emerald-500" />
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Data do Pedido</p>
+                                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{new Date(selectedQuote.date).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center gap-3">
+                                    <Clock className="w-5 h-5 text-emerald-500" />
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Status Atual</p>
+                                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{selectedQuote.status === 'approved' ? 'Aprovado' : 'Aguardando'}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Itens Transacionados</h4>
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                    {selectedQuote.items.map((item, i) => (
+                                        <div key={i} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 rounded-2xl">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-500 text-white font-bold text-xs">
+                                                    {item.quantity}
+                                                </div>
+                                                <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{item.serviceName}</span>
+                                            </div>
+                                            <span className="font-bold text-slate-900 dark:text-white">R$ {item.total.toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-between items-end">
+                                <div>
+                                    <p className="text-sm font-bold text-slate-400 uppercase">Investimento Total</p>
+                                    <p className="text-3xl font-black text-emerald-600 italic">R$ {selectedQuote.total.toLocaleString()}</p>
+                                </div>
+                                {selectedQuote.status !== 'approved' && (
+                                    <button
+                                        onClick={() => handleEditQuote(selectedQuote)}
+                                        className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-emerald-50 transition-all"
+                                        title="Editar Itens"
+                                    >
+                                        <Pencil className="w-5 h-5" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+                            {selectedQuote.status === 'approved' ? (
+                                <button
+                                    onClick={() => generateQuotePDF(selectedQuote)}
+                                    className="w-full flex items-center justify-center gap-2 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black shadow-xl transition-all hover:scale-[1.02]"
+                                >
+                                    <FileText className="w-5 h-5" /> Re-emitir Pedido (PDF)
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => handleApprove(selectedQuote)}
+                                    className="w-full flex items-center justify-center gap-2 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-500/30 transition-all hover:scale-[1.02]"
+                                >
+                                    <CheckCircle2 className="w-5 h-5" /> Aprovar e Registrar Venda
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Criação / Edição */}
             {showQuoteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800">
-                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/20">
                             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                                {editingQuoteId ? 'Editar Orçamento' : 'Novo Orçamento'}
+                                {editingQuoteId ? 'Ajustar Orçamento' : 'Novo Orçamento de Serviço'}
                             </h2>
                             <button onClick={() => { setShowQuoteModal(false); resetForm(); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                                 <X className="w-6 h-6 text-slate-500" />
@@ -411,42 +502,40 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                            {/* Client Selection */}
                             <div className="space-y-3">
                                 <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                                    <Building2 className="w-4 h-4 text-emerald-500" /> Selecionar Cliente
+                                    <Building2 className="w-4 h-4 text-emerald-500" /> Cliente Solicitante
                                 </label>
                                 <select
                                     value={selectedClientId}
                                     onChange={(e) => setSelectedClientId(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white"
+                                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white font-bold"
                                 >
-                                    <option value="">Selecione um cliente...</option>
+                                    <option value="">Selecione um cliente cadastrado...</option>
                                     {clients.map(client => (
                                         <option key={client.id} value={client.id}>{client.companyName}</option>
                                     ))}
                                 </select>
                             </div>
 
-                            {/* Service Selection / Catalog */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center">
                                         <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                                            <Tag className="w-4 h-4 text-emerald-500" /> Catálogo de Serviços
+                                            <Tag className="w-4 h-4 text-emerald-500" /> Serviços no Catálogo
                                         </label>
                                         <button
                                             onClick={() => setShowServiceForm(true)}
-                                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded"
                                         >
-                                            <Plus className="w-3 h-3" /> Criar Novo
+                                            <Plus className="w-3 h-3" /> Novo Serviço
                                         </button>
                                     </div>
                                     <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                                         {services.map(service => (
                                             <div
                                                 key={service.id}
-                                                className="group flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl hover:border-emerald-500/50 transition-all cursor-pointer"
+                                                className="group flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl hover:border-emerald-500 transition-all cursor-pointer shadow-sm"
                                             >
                                                 <div className="flex-1" onClick={() => handleAddServiceToQuote(service)}>
                                                     <p className="font-bold text-slate-900 dark:text-white text-sm">{service.name}</p>
@@ -471,14 +560,13 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                     </div>
                                 </div>
 
-                                {/* Selected Items */}
                                 <div className="space-y-4">
                                     <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                                        <ShoppingCart className="w-4 h-4 text-emerald-500" /> Itens do Orçamento
+                                        <ShoppingCart className="w-4 h-4 text-emerald-500" /> Carrinho do Orçamento
                                     </label>
                                     <div className="space-y-3">
                                         {currentQuoteItems.map((item, index) => (
-                                            <div key={index} className="flex flex-col p-4 bg-emerald-50/50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/10">
+                                            <div key={index} className="flex flex-col p-4 bg-emerald-50 dark:bg-emerald-500/5 rounded-xl border border-emerald-100 dark:border-emerald-500/10">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <span className="font-bold text-slate-900 dark:text-white text-sm flex-1">{item.serviceName}</span>
                                                     <button onClick={() => removeItemFromQuote(index)} className="text-rose-500 hover:text-rose-700 p-1">
@@ -508,40 +596,39 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                             </div>
                                         ))}
                                         {currentQuoteItems.length === 0 && (
-                                            <div className="text-center py-10 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl text-slate-400">
-                                                Nenhum item adicionado
+                                            <div className="text-center py-10 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl text-slate-400 font-bold text-sm">
+                                                Toque em um serviço para adicionar
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Totals and Discounts */}
                             <div className="pt-8 border-t border-slate-100 dark:border-slate-800">
                                 <div className="flex flex-col md:flex-row justify-between gap-8">
                                     <div className="flex-1 space-y-4">
                                         <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                                            <Percent className="w-4 h-4 text-emerald-500" /> Desconto Especial (%)
+                                            <Percent className="w-4 h-4 text-emerald-500" /> Aplicar Desconto (%)
                                         </label>
                                         <input
                                             type="number"
                                             value={discountPercent}
                                             onChange={(e) => setDiscountPercent(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                                            className="w-full md:w-32 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white"
+                                            className="w-full md:w-32 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white font-bold"
                                         />
                                     </div>
-                                    <div className="w-full md:w-80 space-y-3 bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-slate-500">Subtotal:</span>
-                                            <span className="font-bold text-slate-900 dark:text-white">R$ {subtotal.toLocaleString()}</span>
+                                    <div className="w-full md:w-80 space-y-3 bg-slate-900 dark:bg-black p-6 rounded-2xl border border-slate-800 shadow-xl">
+                                        <div className="flex justify-between text-xs text-slate-500">
+                                            <span>Subtotal Brutal:</span>
+                                            <span className="font-bold text-slate-300">R$ {subtotal.toLocaleString()}</span>
                                         </div>
-                                        <div className="flex justify-between text-sm text-rose-500">
-                                            <span>Desconto:</span>
+                                        <div className="flex justify-between text-xs text-rose-500">
+                                            <span>Abatimento:</span>
                                             <span className="font-bold">- R$ {discountAmount.toLocaleString()}</span>
                                         </div>
-                                        <div className="flex justify-between text-2xl pt-3 border-t border-slate-200 dark:border-slate-800">
-                                            <span className="font-black text-slate-900 dark:text-white italic">Total:</span>
-                                            <span className="font-black text-emerald-600">R$ {total.toLocaleString()}</span>
+                                        <div className="flex justify-between text-2xl pt-3 border-t border-slate-800 scale-105 origin-right">
+                                            <span className="font-black text-white italic">TOTAL:</span>
+                                            <span className="font-black text-emerald-500">R$ {total.toLocaleString()}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -553,122 +640,20 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                 onClick={() => { setShowQuoteModal(false); resetForm(); }}
                                 className="px-6 py-3 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl transition-all"
                             >
-                                Cancelar
+                                Sair
                             </button>
                             <button
                                 onClick={handleSaveQuote}
-                                className="flex items-center gap-2 px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 shadow-lg transition-all"
+                                className="flex items-center gap-2 px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
                             >
-                                <Save className="w-5 h-5" /> {editingQuoteId ? 'Atualizar Orçamento' : 'Salvar Orçamento'}
+                                <Save className="w-5 h-5" /> {editingQuoteId ? 'Confirmar Ajustes' : 'Salvar e Gerar Proposta'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Quote Detail View Modal */}
-            {selectedQuote && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800">
-                        <div className="relative h-32 bg-emerald-500 p-8">
-                            <button onClick={() => setSelectedQuote(null)} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg backdrop-blur-md transition-all">
-                                <X className="w-5 h-5" />
-                            </button>
-                            <h2 className="text-2xl font-black text-white tracking-tight">Detalhes do Orçamento</h2>
-                            <p className="text-emerald-100 opacity-80 text-sm">#{selectedQuote.id.slice(-6).toUpperCase()}</p>
-                        </div>
-
-                        <div className="p-8 space-y-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl">
-                                    <Building2 className="w-8 h-8 text-emerald-500" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Cliente</p>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase">{selectedQuote.clientName}</h3>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center gap-3">
-                                    <Calendar className="w-5 h-5 text-emerald-500" />
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Data</p>
-                                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{new Date(selectedQuote.date).toLocaleDateString()}</p>
-                                    </div>
-                                </div>
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center gap-3">
-                                    <Clock className="w-5 h-5 text-emerald-500" />
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Status</p>
-                                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm capitalize">{selectedQuote.status === 'approved' ? 'Aprovado' : 'Rascunho'}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">Itens da Proposta</h4>
-                                <div className="space-y-2">
-                                    {selectedQuote.items.map((item, i) => (
-                                        <div key={i} className="flex justify-between items-center p-4 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 font-bold text-xs italic">
-                                                    {item.quantity}x
-                                                </div>
-                                                <span className="font-bold text-slate-700 dark:text-slate-300">{item.serviceName}</span>
-                                            </div>
-                                            <span className="font-bold text-slate-900 dark:text-white">R$ {item.total.toLocaleString()}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-between items-end">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-400 uppercase">Valor Final</p>
-                                    <p className="text-3xl font-black text-emerald-600 italic">R$ {selectedQuote.total.toLocaleString()}</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleEditQuote(selectedQuote)}
-                                        className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-emerald-50 transition-all"
-                                        title="Editar Itens"
-                                    >
-                                        <Pencil className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteQuote(selectedQuote.id)}
-                                        className="p-3 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-all"
-                                        title="Excluir Orçamento"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
-                            {selectedQuote.status === 'approved' ? (
-                                <button
-                                    onClick={() => generateQuotePDF(selectedQuote)}
-                                    className="w-full flex items-center justify-center gap-2 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black shadow-xl transition-all hover:scale-[1.02]"
-                                >
-                                    <FileText className="w-5 h-5" /> Baixar Pedido (PDF)
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={() => handleApprove(selectedQuote)}
-                                    className="w-full flex items-center justify-center gap-2 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-500/30 transition-all hover:scale-[1.02]"
-                                >
-                                    <CheckCircle2 className="w-5 h-5" /> Aprovar e Gerar Pedido
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* New/Edit Service Floating Modal */}
+            {/* Modal de Serviço - Sem mudanças funcionais apenas visual */}
             {showServiceForm && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in zoom-in-95 duration-200">
                     <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-8 shadow-2xl border border-slate-200 dark:border-slate-800">
@@ -683,7 +668,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                     type="text"
                                     value={newServiceName}
                                     onChange={(e) => setNewServiceName(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white font-bold"
                                     placeholder="Ex: Consultoria Mensal"
                                 />
                             </div>
@@ -693,7 +678,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                     type="number"
                                     value={newServicePrice}
                                     onChange={(e) => setNewServicePrice(e.target.value)}
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                                    className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white font-bold"
                                     placeholder="0.00"
                                 />
                             </div>
@@ -707,7 +692,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 py-4 font-bold bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+                                    className="flex-1 py-4 font-bold bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all font-black"
                                 >
                                     {editingService ? 'Salvar' : 'Adicionar'}
                                 </button>

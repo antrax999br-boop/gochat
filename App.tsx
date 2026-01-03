@@ -129,7 +129,7 @@ const App: React.FC = () => {
       const { data: quotesData } = await supabase.from('quotes').select(`
         *,
         items:quote_items(*)
-      `).order('date', { ascending: false });
+      `).order('date', { ascending: false }).order('created_at', { ascending: false });
 
       if (quotesData) {
         const mappedQuotes = quotesData.map(q => ({
@@ -193,15 +193,19 @@ const App: React.FC = () => {
     await fetchAllData();
   };
 
-  const handleUpdateQuotes = async (newQuotes: Quote[]) => {
-    // If the change was a deletion (length decreased)
-    if (newQuotes.length < quotes.length) {
-      const deletedId = quotes.find(q => !newQuotes.find(nq => nq.id === q.id))?.id;
-      if (deletedId) {
-        await supabase.from('quotes').delete().eq('id', deletedId);
-      }
-    }
+  const handleUpdateQuotes = async () => {
     await fetchAllData();
+  };
+
+  const handleDeleteQuote = async (id: string) => {
+    if (id) {
+      // 1. Delete items first (cascade or manual)
+      await supabase.from('quote_items').delete().eq('quote_id', id);
+      // 2. Delete quote
+      await supabase.from('quotes').delete().eq('id', id);
+      // 3. Refresh
+      await fetchAllData();
+    }
   };
 
   const handleUpdateServices = async (newServices: Service[]) => {
@@ -387,8 +391,10 @@ const App: React.FC = () => {
           quotes={quotes}
           services={services}
           onUpdateQuotes={handleUpdateQuotes}
+          onDeleteQuote={handleDeleteQuote}
           onApproveQuote={handleApproveQuote}
           onUpdateServices={handleUpdateServices}
+          fetchAllData={fetchAllData}
         />;
       default:
         return <DashboardScreen transactions={transactions} expenseItems={expenseItems} />;
