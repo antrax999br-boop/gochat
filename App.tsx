@@ -145,10 +145,8 @@ const App: React.FC = () => {
         }
       } catch (e: any) {
         console.error('CRITICAL: Mapping or fetch failed for employees:', e);
-        // Only alert if it's a real fetch error, not just an empty result
-        if (e.message && !e.message.includes('null')) {
-          alert('Aviso técnico: Erro ao carregar funcionários do banco.');
-        }
+        // Fail silently by setting empty employees to prevent blocking the UI
+        setEmployees([]);
       }
 
       // 2. Fetch Clients
