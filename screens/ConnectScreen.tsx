@@ -67,12 +67,11 @@ const ConnectScreen: React.FC = () => {
         await fetch(`${backendUrl}/disconnect`, { method: 'POST' });
         setStatus('disconnected');
         setQrCode('');
-        window.location.reload();
+        // No reload here unless necessary, let polling handle it or just set local state
+        // window.location.reload(); 
       }
     } catch (error) {
       console.error('Error disconnecting:', error);
-      alert('Erro ao desconectar do WhatsApp.');
-      window.location.reload();
     }
   };
 

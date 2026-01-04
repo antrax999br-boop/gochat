@@ -25,7 +25,7 @@ app.use(express.json());
 
 // --- MANUAL STATE MANAGEMENT ---
 let currentQR = null;
-let currentStatus = 'disconnected';
+let statusConexao = 'disconnected';
 let sock = null;
 
 // Simple in-memory store for chats and messages
@@ -69,7 +69,7 @@ async function connectToWhatsApp() {
         if (qr) {
             console.log('--- NOVO QR CODE GERADO ---');
             currentQR = qr;
-            currentStatus = 'disconnected';
+            statusConexao = 'disconnected';
             io.emit('qr', qr);
             io.emit('status', 'disconnected');
         }
@@ -79,7 +79,7 @@ async function connectToWhatsApp() {
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             console.log(`Conexão fechada. Código: ${statusCode}. Reconectando: ${shouldReconnect}`);
 
-            currentStatus = 'disconnected';
+            statusConexao = 'disconnected';
             currentQR = null;
             io.emit('status', 'disconnected');
 
@@ -102,7 +102,7 @@ async function connectToWhatsApp() {
             }
         } else if (connection === 'open') {
             console.log('--- WHATSAPP CONECTADO COM SUCESSO ---');
-            currentStatus = 'connected';
+            statusConexao = 'connected';
             currentQR = null;
             io.emit('status', 'connected');
         }
@@ -187,33 +187,29 @@ async function connectToWhatsApp() {
 // --- CONTROLLERS / ROUTES ---
 
 app.get('/status', (req, res) => {
-    res.json({ status: "online", whatsapp: currentStatus });
+    res.json({ status: "online", whatsapp: statusConexao });
 });
 
 app.get('/connection-status', (req, res) => {
-    res.json({ status: currentStatus });
-});
-
-app.get('/connection-status', (req, res) => {
-    res.json({ status: currentStatus });
+    res.json({ status: statusConexao });
 });
 
 app.get('/whatsapp/status', (req, res) => {
-    res.json({ connected: currentStatus === 'connected' });
+    res.json({ connected: statusConexao === 'connected' });
 });
 
 app.get('/whatsapp/qrcode', (req, res) => {
-    res.json({ connected: currentStatus === 'connected', qr: currentQR });
+    res.json({ connected: statusConexao === 'connected', qr: currentQR });
 });
 
 app.get('/whatsapp/chats', (req, res) => {
-    if (currentStatus !== 'connected') return res.status(400).json({ error: 'WhatsApp offline' });
+    if (statusConexao !== 'connected') return res.status(400).json({ error: 'WhatsApp offline' });
     const chatList = Array.from(chats.values()).sort((a, b) => (b.conversationTimestamp || 0) - (a.conversationTimestamp || 0));
     res.json(chatList);
 });
 
 app.get('/whatsapp/messages/:jid', (req, res) => {
-    if (currentStatus !== 'connected') return res.status(400).json({ error: 'WhatsApp offline' });
+    if (statusConexao !== 'connected') return res.status(400).json({ error: 'WhatsApp offline' });
     const { jid } = req.params;
     const chatMessages = messages.get(jid) || [];
     res.json(chatMessages);
@@ -221,7 +217,7 @@ app.get('/whatsapp/messages/:jid', (req, res) => {
 
 app.post('/whatsapp/send', async (req, res) => {
     const { to, message } = req.body;
-    if (currentStatus !== 'connected' || !sock) return res.status(400).json({ error: 'WhatsApp offline' });
+    if (statusConexao !== 'connected' || !sock) return res.status(400).json({ error: 'WhatsApp offline' });
 
     try {
         let jid = to;
@@ -239,21 +235,18 @@ app.post('/whatsapp/send', async (req, res) => {
 
 app.post('/disconnect', async (req, res) => {
     try {
-        if (sock) {
-            await sock.logout();
-            sock = null;
-        }
-        currentStatus = 'disconnected';
-        currentQR = null;
+        if (!sock) return res.status(400).json({ error: 'Socket não iniciado' });
+        await sock.logout();
+        statusConexao = 'disconnected';
         res.json({ ok: true });
-    } catch (error) {
-        console.error('Erro ao desconectar:', error);
-        res.status(500).json({ error: 'Falha ao desconectar' });
+    } catch (e) {
+        console.error('Erro ao desconectar:', e);
+        res.status(500).json({ error: 'Erro ao desconectar' });
     }
 });
 
 io.on('connection', (socket) => {
-    socket.emit('status', currentStatus);
+    socket.emit('status', statusConexao);
     if (currentQR) socket.emit('qr', currentQR);
 });
 
