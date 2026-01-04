@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Page } from '../types';
+import { getBackendUrl } from '../lib/api';
 import {
   LayoutDashboard,
   QrCode,
@@ -21,6 +22,27 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
+  const [deviceStatus, setDeviceStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
+  const backendUrl = getBackendUrl();
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`${backendUrl}/connection-status`);
+        if (res.ok) {
+          const data = await res.json();
+          setDeviceStatus(data.status);
+        }
+      } catch (error) {
+        console.error('Error fetching connection status:', error);
+        setDeviceStatus('disconnected');
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 3000);
+    return () => clearInterval(interval);
+  }, [backendUrl]);
   const navItems = [
     { id: Page.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: Page.CALENDAR, label: 'Calendário', icon: Calendar },
@@ -75,10 +97,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">Dispositivo</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Não conectado</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                {deviceStatus === 'connected' ? 'Dispositivo conectado' : 'Dispositivo desconectado'}
+              </p>
             </div>
           </div>
-          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse ring-4 ring-red-100 dark:ring-red-500/10"></div>
+          <div className={`w-2 h-2 rounded-full ${deviceStatus === 'connected' ? 'bg-green-500 ring-green-100 dark:ring-green-500/10' : 'bg-red-500 ring-red-100 dark:ring-red-500/10'} animate-pulse ring-4`}></div>
         </div>
 
         <button

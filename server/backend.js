@@ -190,6 +190,14 @@ app.get('/status', (req, res) => {
     res.json({ status: "online", whatsapp: currentStatus });
 });
 
+app.get('/connection-status', (req, res) => {
+    res.json({ status: currentStatus });
+});
+
+app.get('/connection-status', (req, res) => {
+    res.json({ status: currentStatus });
+});
+
 app.get('/whatsapp/status', (req, res) => {
     res.json({ connected: currentStatus === 'connected' });
 });
@@ -226,6 +234,21 @@ app.post('/whatsapp/send', async (req, res) => {
     } catch (error) {
         console.error('Erro ao enviar:', error);
         res.status(500).json({ error: 'Falha ao enviar' });
+    }
+});
+
+app.post('/disconnect', async (req, res) => {
+    try {
+        if (sock) {
+            await sock.logout();
+            sock = null;
+        }
+        currentStatus = 'disconnected';
+        currentQR = null;
+        res.json({ ok: true });
+    } catch (error) {
+        console.error('Erro ao desconectar:', error);
+        res.status(500).json({ error: 'Falha ao desconectar' });
     }
 });
 

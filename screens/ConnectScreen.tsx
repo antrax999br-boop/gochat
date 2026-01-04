@@ -57,17 +57,21 @@ const ConnectScreen: React.FC = () => {
 
   }, [useSimulation]);
 
-  const handleDisconnect = () => {
-    // In a real scenario, we might want to call a logout endpoint.
-    // For now, we'll just reset local state or reload.
-    if (useSimulation) {
-      setStatus('disconnected');
-      setUseSimulation(false);
-      setConnectionError(false);
-    } else {
-      setStatus('disconnected');
-      setQrCode('');
-      // Optionally notify backend to logout if such endpoint existed
+  const handleDisconnect = async () => {
+    try {
+      if (useSimulation) {
+        setStatus('disconnected');
+        setUseSimulation(false);
+        setConnectionError(false);
+      } else {
+        await fetch(`${backendUrl}/disconnect`, { method: 'POST' });
+        setStatus('disconnected');
+        setQrCode('');
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error disconnecting:', error);
+      alert('Erro ao desconectar do WhatsApp.');
       window.location.reload();
     }
   };
