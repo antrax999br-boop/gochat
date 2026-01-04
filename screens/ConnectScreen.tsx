@@ -17,7 +17,7 @@ const ConnectScreen: React.FC = () => {
     // Function to poll WhatsApp status and QR
     const fetchWhatsAppStatus = async (isFirstRun = false) => {
       try {
-        const response = await fetch(`${backendUrl} /whatsapp/qrcode`);
+        const response = await fetch(`${backendUrl}/whatsapp/qrcode`);
         if (!response.ok) throw new Error('Backend offline');
 
         const data = await response.json();
