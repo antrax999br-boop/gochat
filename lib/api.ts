@@ -1,7 +1,7 @@
 export const getBackendUrl = (): string => {
 
     // --- URL TÚNEL SERVEO (Sem Senha) ---
-    const tunnelUrl = 'https://d9f578a30d0c3db3-45-235-251-97.serveousercontent.com';
+    const tunnelUrl = 'https://7aa5d459fb422ca4-45-235-251-97.serveousercontent.com';
 
     if (import.meta.env.VITE_BACKEND_URL) {
         if (import.meta.env.VITE_BACKEND_URL.includes('localhost')) {
