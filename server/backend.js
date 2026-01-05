@@ -10,6 +10,7 @@ import pino from 'pino';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import jwt from 'jsonwebtoken';
 import fs from 'fs/promises';
 
 // --- CONFIGURATION ---
@@ -248,6 +249,29 @@ app.post('/disconnect', async (req, res) => {
 io.on('connection', (socket) => {
     socket.emit('status', statusConexao);
     if (currentQR) socket.emit('qr', currentQR);
+});
+
+/* ---------- AUTH CONTROL ---------- */
+const JWT_SECRET = process.env.JWT_SECRET || 'antigravity_secret';
+
+app.post('/api/auth/login-register', (req, res) => {
+    const { id, email } = req.body;
+    if (!id || !email) return res.status(400).json({ error: 'Missing data' });
+
+    const token = jwt.sign({ id, email }, JWT_SECRET, { expiresIn: '8h' });
+    res.json({ token, user: { id, email } });
+});
+
+app.get('/api/auth/validate', (req, res) => {
+    const auth = req.headers.authorization;
+    if (!auth) return res.status(401).json({ valid: false });
+    const token = auth.split(" ")[1];
+    try {
+        jwt.verify(token, JWT_SECRET);
+        return res.status(200).json({ valid: true });
+    } catch {
+        return res.status(401).json({ valid: false });
+    }
 });
 
 connectToWhatsApp().catch(err => console.error("Erro crítico:", err));

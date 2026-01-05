@@ -16,6 +16,7 @@ import Layout from './components/Layout';
 import Calculator from './components/Calculator';
 import { supabase } from './lib/supabase';
 import { Bell, Lock, X } from 'lucide-react';
+import { logout as realLogout, useAuthGuard as useAntiGravitGuard, saveAuthSession } from './lib/authControl';
 
 const initialTransactions: Transaction[] = [
   { id: '1', description: 'Assinatura API WhatsApp', amount: 250, type: 'expense', date: '2023-10-05', month: 'Out', category: 'Software' },
@@ -43,6 +44,9 @@ const App: React.FC = () => {
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [requestedPage, setRequestedPage] = useState<Page | null>(null);
+
+  // AntiGravit Auth Guard
+  useAntiGravitGuard(user, () => setUser(null));
 
   useEffect(() => {
     console.log("App Schumacher v1.1 - Supabase Sync Active");
@@ -474,12 +478,13 @@ const App: React.FC = () => {
 
   const handleLogin = (userData: User) => {
     setUser(userData);
+    saveAuthSession(userData);
     setActivePage(Page.DASHBOARD);
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setUser(null);
+    realLogout();
   };
 
   const toggleDarkMode = () => {
