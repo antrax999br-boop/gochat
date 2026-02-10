@@ -42,7 +42,9 @@ const Header: React.FC<HeaderProps> = ({
     [Page.CLIENTS]: 'Gestão de Clientes',
     [Page.SALES]: 'Gestão de Vendas',
     [Page.EMPLOYEES]: 'Gestão de Funcionários',
-    [Page.WHATSAPP_CHAT]: 'WhatsApp'
+    [Page.WHATSAPP_CHAT]: 'WhatsApp',
+    [Page.BOLETOS_ATIVOS]: 'Boletos Ativos',
+    [Page.BOLETOS_SEM_NOTA]: 'Boletos Sem Nota'
   };
 
   // Close menu when clicking outside

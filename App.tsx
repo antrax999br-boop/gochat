@@ -10,7 +10,8 @@ import {
   ExpenseItem,
   NotificationItem,
   Condominium,
-  User
+  User,
+  Invoice
 } from './types';
 import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
@@ -24,6 +25,7 @@ import ClientsScreen from './screens/ClientsScreen';
 import SalesScreen from './screens/SalesScreen';
 import EmployeesScreen from './screens/EmployeesScreen';
 import WhatsAppChatScreen from './screens/WhatsAppChatScreen';
+import InvoicesScreen from './screens/InvoicesScreen'; // Added InvoicesScreen import
 import Layout from './components/Layout';
 import Calculator from './components/Calculator';
 import { supabase } from './lib/supabase';
@@ -53,6 +55,7 @@ const App: React.FC = () => {
   const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [condominiums, setCondominiums] = useState<Condominium[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
@@ -306,6 +309,28 @@ const App: React.FC = () => {
       } catch (e) {
         console.error('Error fetching condominiums:', e);
       }
+
+      // 9. Fetch Invoices
+      try {
+        const { data, error } = await supabase.from('invoices').select('*').order('due_date', { ascending: false });
+        if (!error && data) {
+          setInvoices(data.map(i => ({
+            id: i.id,
+            type: i.type,
+            clientId: i.client_id,
+            clientName: clientsData?.find(c => c.id === i.client_id)?.company_name || 'Desconhecido',
+            invoiceNumber: i.invoice_number,
+            originalValue: Number(i.original_value),
+            finalValue: Number(i.final_value),
+            dueDate: i.due_date,
+            status: i.status,
+            month: i.month,
+            createdAt: i.created_at
+          })));
+        }
+      } catch (e) {
+        console.error('Error fetching invoices:', e);
+      }
     } catch (error) {
       console.error('General data fetch error:', error);
     }
@@ -320,6 +345,7 @@ const App: React.FC = () => {
     setEvents([]);
     setEmployees([]);
     setCondominiums([]);
+    setInvoices([]);
   };
 
   const handleUpdateTransactions = async (newTransactions: Transaction[]) => {
@@ -600,6 +626,16 @@ const App: React.FC = () => {
         );
       case Page.WHATSAPP_CHAT:
         return <WhatsAppChatScreen />;
+      case Page.BOLETOS_ATIVOS:
+      case Page.BOLETOS_SEM_NOTA:
+        return (
+          <InvoicesScreen
+            invoices={invoices}
+            clients={clients}
+            activePage={activePage}
+            fetchAllData={fetchAllData}
+          />
+        );
       default:
         return <DashboardScreen transactions={transactions} expenseItems={expenseItems} />;
     }

@@ -9,7 +9,23 @@ export enum Page {
   CLIENTS = 'CLIENTS',
   SALES = 'SALES',
   EMPLOYEES = 'EMPLOYEES',
-  WHATSAPP_CHAT = 'WHATSAPP_CHAT'
+  WHATSAPP_CHAT = 'WHATSAPP_CHAT',
+  BOLETOS_ATIVOS = 'BOLETOS_ATIVOS',
+  BOLETOS_SEM_NOTA = 'BOLETOS_SEM_NOTA'
+}
+
+export interface Invoice {
+  id: string;
+  type: 'inicial' | 'internet' | 'sem_nota' | 'aguardando_nota';
+  clientId: string;
+  clientName?: string;
+  invoiceNumber: string;
+  originalValue: number;
+  finalValue: number;
+  dueDate: string;
+  status: 'pending' | 'paid';
+  month: string; // MM/YYYY
+  createdAt: string;
 }
 
 export interface Service {
