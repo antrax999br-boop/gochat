@@ -117,6 +117,22 @@ const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ invoices, clients, acti
         }
     };
 
+    const toggleInvoiceStatus = async (invoice: Invoice) => {
+        try {
+            const newStatus = invoice.status === 'paid' ? 'pending' : 'paid';
+            const { error } = await supabase
+                .from('invoices')
+                .update({ status: newStatus })
+                .eq('id', invoice.id);
+
+            if (error) throw error;
+            fetchAllData();
+        } catch (error) {
+            console.error('Error toggling status:', error);
+            alert('Erro ao atualizar status.');
+        }
+    };
+
     const handleDelete = async (id: string) => {
         if (!window.confirm('Excluir este registro permanentemente?')) return;
         try {
@@ -333,7 +349,10 @@ const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ invoices, clients, acti
                                             <div className={`text-sm font-black ${inv.status === 'paid' ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
                                                 R$ {inv.finalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </div>
-                                            <div className="flex items-center justify-end gap-1 mt-1">
+                                            <button
+                                                onClick={() => toggleInvoiceStatus(inv)}
+                                                className="flex items-center justify-end gap-1 mt-1 hover:opacity-70 transition-opacity ml-auto"
+                                            >
                                                 {inv.status === 'paid' ? (
                                                     <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                                                 ) : (
@@ -342,10 +361,19 @@ const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ invoices, clients, acti
                                                 <span className={`text-[8px] font-black uppercase tracking-tighter ${inv.status === 'paid' ? 'text-emerald-500' : 'text-amber-500'}`}>
                                                     {inv.status === 'paid' ? 'Liquidado' : 'Em Aberto'}
                                                 </span>
-                                            </div>
+                                            </button>
                                         </td>
                                         <td className="p-6">
                                             <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => toggleInvoiceStatus(inv)}
+                                                    title={inv.status === 'paid' ? "Marcar como Em Aberto" : "Marcar como Pago"}
+                                                    className={`p-2 border rounded-xl transition-all shadow-sm ${inv.status === 'paid'
+                                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
+                                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-emerald-500'}`}
+                                                >
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                </button>
                                                 <button
                                                     onClick={() => {
                                                         setEditingId(inv.id);
