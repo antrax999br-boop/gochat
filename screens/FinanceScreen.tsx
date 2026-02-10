@@ -46,6 +46,8 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
   const [type, setType] = useState<'income' | 'expense'>('income');
   const [selectedMonth, setSelectedMonth] = useState(['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][new Date().getMonth()]);
   const [category, setCategory] = useState('Geral');
+  const [transactionDate, setTransactionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [searchTerm, setSearchTerm] = useState('');
   const chartRef = useRef<HTMLDivElement>(null);
 
   const stats = useMemo(() => {
@@ -63,6 +65,15 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
       balance: (income + plannedIncome) - (expense + plannedExpense)
     };
   }, [transactions, expenseItems]);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const matchesMonth = t.month === selectedMonth;
+      const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.category.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesMonth && matchesSearch;
+    });
+  }, [transactions, selectedMonth, searchTerm]);
 
   const chartData = useMemo(() => {
     return months.map(m => {
@@ -180,8 +191,8 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
         description,
         amount: parseFloat(amount),
         type,
-        date: new Date().toISOString().split('T')[0],
-        month: selectedMonth,
+        date: transactionDate,
+        month: months[new Date(transactionDate).getUTCMonth()],
         category
       });
 
@@ -215,6 +226,13 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
           <button className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 shadow-sm">
             <Filter className="w-4 h-4" /> Filtros
           </button>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold text-slate-700 dark:text-white shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer"
+          >
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
           <button
             onClick={handleExportReport}
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 transition-all"
@@ -305,14 +323,13 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mês</label>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data</label>
+                <input
+                  type="date"
+                  value={transactionDate}
+                  onChange={(e) => setTransactionDate(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white text-sm"
-                >
-                  {months.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                />
               </div>
             </div>
 
@@ -386,7 +403,13 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
           <div className="flex items-center gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input type="text" placeholder="Filtrar..." className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 text-xs focus:ring-2 focus:ring-emerald-500 outline-none w-48" />
+              <input
+                type="text"
+                placeholder="Filtrar por descrição..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 text-xs focus:ring-2 focus:ring-emerald-500 outline-none w-48 dark:text-white"
+              />
             </div>
           </div>
         </div>
@@ -403,7 +426,7 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {transactions.map((t) => (
+              {filteredTransactions.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/30 transition-colors group">
                   <td className="px-6 py-4">
                     <span className="text-sm font-bold text-slate-900 dark:text-white">{t.description}</span>

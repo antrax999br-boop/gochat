@@ -358,14 +358,18 @@ const App: React.FC = () => {
 
     // 2. Create transaction
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const now = new Date();
+
+    // Parse the quote date safely
+    const quoteDate = new Date(quote.date);
+    // If quote date is invalid, fallback to now
+    const safeDate = isNaN(quoteDate.getTime()) ? new Date() : quoteDate;
 
     await supabase.from('transactions').insert({
       description: `Serviço: Orçamento #${quote.id.slice(-4)}`,
       amount: quote.total,
       type: 'income',
-      date: now.toISOString().split('T')[0],
-      month: monthNames[now.getMonth()],
+      date: safeDate.toISOString().split('T')[0],
+      month: monthNames[safeDate.getMonth()],
       category: 'Vendas',
       client_id: quote.clientId
     });

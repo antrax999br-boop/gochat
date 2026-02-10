@@ -43,6 +43,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
     const [discountPercent, setDiscountPercent] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [sellerName, setSellerName] = useState('');
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
     // New Service Form State
     const [showServiceForm, setShowServiceForm] = useState(false);
@@ -164,7 +165,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                 discount_amount: discountAmount,
                 total,
                 status: editingQuoteId ? quotes.find(q => q.id === editingQuoteId)?.status || 'draft' : 'draft',
-                date: editingQuoteId ? quotes.find(q => q.id === editingQuoteId)?.date || new Date().toISOString() : new Date().toISOString()
+                date: selectedDate
             };
 
             let quoteId = editingQuoteId;
@@ -207,6 +208,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         setCurrentQuoteItems(quote.items);
         setDiscountPercent(quote.discountPercentage);
         setSellerName(quote.sellerName || '');
+        setSelectedDate(new Date(quote.date).toISOString().split('T')[0]);
         setSelectedQuote(null);
         setShowQuoteModal(true);
     };
@@ -319,6 +321,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         setDiscountPercent(0);
         setEditingQuoteId(null);
         setSellerName('');
+        setSelectedDate(new Date().toISOString().split('T')[0]);
     };
 
     const filteredQuotes = useMemo(() => {
@@ -550,6 +553,17 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                         value={sellerName}
                                         onChange={(e) => setSellerName(e.target.value)}
                                         placeholder="Nome do vendedor..."
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                                        <Calendar className="w-4 h-4 text-emerald-500" /> Data do Pedido
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={(e) => setSelectedDate(e.target.value)}
                                         className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white font-bold"
                                     />
                                 </div>
