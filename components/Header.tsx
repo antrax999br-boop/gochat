@@ -41,7 +41,8 @@ const Header: React.FC<HeaderProps> = ({
     [Page.EXPENSES]: 'Estrutura de Gastos',
     [Page.CLIENTS]: 'Gestão de Clientes',
     [Page.SALES]: 'Gestão de Vendas',
-    [Page.EMPLOYEES]: 'Gestão de Funcionários'
+    [Page.EMPLOYEES]: 'Gestão de Funcionários',
+    [Page.WHATSAPP_CHAT]: 'WhatsApp'
   };
 
   // Close menu when clicking outside
@@ -64,7 +65,11 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <header className="h-16 bg-white dark:bg-slate-950 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between px-8 flex-shrink-0 z-30 transition-colors">
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-slate-400 dark:text-slate-500 font-medium">Go Solutions</span>
+        <img
+          src="/logo.png"
+          alt="Go Solutions Logo"
+          className="h-6 w-auto object-contain"
+        />
         <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-700" />
         <span className="text-slate-900 dark:text-slate-100 font-bold">{pageTitles[activePage]}</span>
       </div>
