@@ -51,9 +51,12 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
   const chartRef = useRef<HTMLDivElement>(null);
 
   const stats = useMemo(() => {
-    // Actual transactions
-    const income = transactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc, 0);
-    const expense = transactions.reduce((acc, t) => t.type === 'expense' ? acc + t.amount : acc, 0);
+    // Filter transactions by selected month first
+    const monthTransactions = transactions.filter(t => t.month === selectedMonth);
+
+    // Actual transactions for this month
+    const income = monthTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc, 0);
+    const expense = monthTransactions.reduce((acc, t) => t.type === 'expense' ? acc + t.amount : acc, 0);
 
     // Add Planned (Expense Structure) - they are monthly recurring
     const plannedIncome = expenseItems.filter(i => i.type === 'income').reduce((acc, i) => acc + i.value, 0);
@@ -64,7 +67,7 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
       expense: expense + plannedExpense,
       balance: (income + plannedIncome) - (expense + plannedExpense)
     };
-  }, [transactions, expenseItems]);
+  }, [transactions, expenseItems, selectedMonth]);
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
