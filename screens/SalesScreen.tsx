@@ -220,7 +220,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         }
     };
 
-    const generateQuotePDF = (quote: Quote) => {
+    const generateQuotePDF = async (quote: Quote) => {
         const client = clients.find(c => c.id === quote.clientId);
         const doc = new jsPDF();
 
@@ -231,7 +231,20 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         doc.setFontSize(24);
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        doc.text('GO SOLUTIONS', 14, 25);
+        // Load and add logo
+        const img = new Image();
+        img.src = '/logo.png';
+        await new Promise((resolve) => {
+            img.onload = resolve;
+            img.onerror = resolve; // Continue even if image fails
+        });
+
+        if (img.complete && img.naturalWidth > 0) {
+            doc.addImage(img, 'PNG', 14, 10, 25, 25);
+            doc.text('GO SOLUTIONS', 42, 25);
+        } else {
+            doc.text('GO SOLUTIONS', 14, 25);
+        }
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');

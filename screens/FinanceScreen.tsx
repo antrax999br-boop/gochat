@@ -113,10 +113,26 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
     try {
       const doc = new jsPDF();
 
-      // Title
-      doc.setFontSize(22);
-      doc.setTextColor(33, 33, 33);
-      doc.text(`Relatório Financeiro - ${selectedMonth}`, 14, 20);
+      // Load and add logo
+      const img = new Image();
+      img.src = '/logo.png';
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve;
+      });
+
+      if (img.complete && img.naturalWidth > 0) {
+        doc.addImage(img, 'PNG', 14, 10, 20, 20);
+        doc.setFontSize(22);
+        doc.setTextColor(33, 33, 33);
+        doc.text(`Relatório Financeiro`, 38, 20);
+        doc.setFontSize(14);
+        doc.text(`Go Solutions - ${selectedMonth}`, 38, 28);
+      } else {
+        doc.setFontSize(22);
+        doc.setTextColor(33, 33, 33);
+        doc.text(`Relatório Financeiro - ${selectedMonth}`, 14, 20);
+      }
 
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);

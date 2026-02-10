@@ -207,23 +207,42 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
         return { totalPayroll, totalRemuneration, totalBenefits, totalOperational, count: employees.length };
     }, [employees]);
 
-    const exportToPDF = () => {
+    const exportToPDF = async () => {
         const doc = new jsPDF('landscape');
         const pageWidth = doc.internal.pageSize.width;
+
+        // Load logo
+        const img = new Image();
+        img.src = '/logo.png';
+        await new Promise((resolve) => {
+            img.onload = resolve;
+            img.onerror = resolve;
+        });
 
         // Header
         doc.setFillColor(16, 185, 129); // emerald-500
         doc.rect(0, 0, pageWidth, 35, 'F');
 
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
-        doc.setFont('helvetica', 'bold');
-        doc.text('FOLHA DE PAGAMENTO', pageWidth / 2, 15, { align: 'center' });
 
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Go Solutions', pageWidth / 2, 23, { align: 'center' });
-        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, 29, { align: 'center' });
+        if (img.complete && img.naturalWidth > 0) {
+            doc.addImage(img, 'PNG', 14, 5, 25, 25);
+            doc.setFontSize(22);
+            doc.setFont('helvetica', 'bold');
+            doc.text('FOLHA DE PAGAMENTO', 45, 18);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Go Solutions', 45, 26);
+        } else {
+            doc.setFontSize(22);
+            doc.setFont('helvetica', 'bold');
+            doc.text('FOLHA DE PAGAMENTO', pageWidth / 2, 15, { align: 'center' });
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Go Solutions', pageWidth / 2, 23, { align: 'center' });
+        }
+
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth - 14, 29, { align: 'right' });
 
         // Summary Cards
         doc.setTextColor(71, 85, 105);
