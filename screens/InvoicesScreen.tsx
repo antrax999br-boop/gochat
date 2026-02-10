@@ -145,19 +145,62 @@ const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ invoices, clients, acti
         }
     };
 
-    const exportToPDF = () => {
+    const exportToPDF = async () => {
         const doc = new jsPDF('landscape');
         const pageWidth = doc.internal.pageSize.width;
 
-        // Header
+        const getBase64ImageFromURL = (url: string): Promise<string> => {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.setAttribute('crossOrigin', 'anonymous');
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0);
+                    const dataURL = canvas.toDataURL('image/png');
+                    resolve(dataURL);
+                };
+                img.onerror = (error) => reject(error);
+                img.src = url;
+            });
+        };
+
+        // Background header
         doc.setFillColor(16, 185, 129);
         doc.rect(0, 0, pageWidth, 40, 'F');
 
+        try {
+            const logoBase64 = await getBase64ImageFromURL('https://schumachertec.vercel.app/logo.png');
+            doc.addImage(logoBase64, 'PNG', 14, 8, 18, 18);
+        } catch (e) {
+            console.error('Error loading logo for PDF:', e);
+        }
+
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(24);
-        doc.text('Relatório de Boletos e Registros', 14, 25);
+
+        // Company Name branding
         doc.setFontSize(10);
-        doc.text(`${months[selectedMonth - 1]} / ${selectedYear}`, 14, 33);
+        doc.setFont('helvetica', 'bold');
+        doc.text('GO SOLUTIONS', 38, 15);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text('GESTÃO INTELIGENTE', 38, 20);
+
+        // Report Title
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Relatório de Boletos e Registros', 38, 30);
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${months[selectedMonth - 1]} / ${selectedYear}`, 38, 36);
+
+        // Emission Date
+        const emissionDate = new Date().toLocaleString('pt-BR');
+        doc.setFontSize(8);
+        doc.text(`Emissão: ${emissionDate}`, pageWidth - 14, 36, { align: 'right' });
 
         const tableData = filteredInvoices.map(inv => [
             inv.clientName || 'N/A',
@@ -176,7 +219,14 @@ const InvoicesScreen: React.FC<InvoicesScreenProps> = ({ invoices, clients, acti
             head: [['CLIENTE', 'VALOR ORIG.', 'VENCIMENTO', 'ATIVO', 'S/ NOTA', 'INTERNET', 'AGUARD. NOTA', 'VALOR FINAL', 'STATUS']],
             body: tableData,
             theme: 'striped',
-            headStyles: { fillColor: [16, 185, 129] }
+            headStyles: { fillColor: [16, 185, 129] },
+            styles: { fontSize: 8 },
+            columnStyles: {
+                0: { cellWidth: 60 },
+                1: { halign: 'right' },
+                7: { halign: 'right', fontStyle: 'bold' },
+                8: { halign: 'center' }
+            }
         });
 
         doc.save(`Boletos_${months[selectedMonth - 1]}_${selectedYear}.pdf`);
