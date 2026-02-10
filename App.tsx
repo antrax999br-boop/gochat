@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Page, User, CalendarEvent, NotificationItem, Transaction, Client, Quote, Service, ExpenseItem, Employee } from './types';
+import {
+  Page,
+  Transaction,
+  Client,
+  Service,
+  Quote,
+  CalendarEvent,
+  Employee,
+  ExpenseItem,
+  NotificationItem,
+  Condominium,
+  User
+} from './types';
 import LoginScreen from './screens/LoginScreen';
 import DashboardScreen from './screens/DashboardScreen';
 import ConnectScreen from './screens/ConnectScreen';
@@ -40,6 +52,7 @@ const App: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [condominiums, setCondominiums] = useState<Condominium[]>([]);
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
@@ -143,7 +156,9 @@ const App: React.FC = () => {
             salary: Number(emp.salary) || 0,
             status: emp.status || 'active',
             address: emp.address || '',
-            birthDate: emp.birth_date || ''
+            birthDate: emp.birth_date || '',
+            condominiumId: emp.condominium_id || undefined,
+            condominiumName: empData.find(c => c.id === emp.condominium_id)?.name || undefined
           }));
           setEmployees(mapped);
         } else {
@@ -276,6 +291,21 @@ const App: React.FC = () => {
       } catch (e) {
         console.error('Error fetching calendar events:', e);
       }
+
+      // 8. Fetch Condominiums
+      try {
+        const { data, error } = await supabase.from('condominiums').select('*').order('name');
+        if (!error && data) {
+          setCondominiums(data.map(c => ({
+            id: c.id,
+            name: c.name,
+            address: c.address,
+            createdAt: c.created_at
+          })));
+        }
+      } catch (e) {
+        console.error('Error fetching condominiums:', e);
+      }
     } catch (error) {
       console.error('General data fetch error:', error);
     }
@@ -289,6 +319,7 @@ const App: React.FC = () => {
     setExpenseItems([]);
     setEvents([]);
     setEmployees([]);
+    setCondominiums([]);
   };
 
   const handleUpdateTransactions = async (newTransactions: Transaction[]) => {
@@ -558,7 +589,15 @@ const App: React.FC = () => {
           fetchAllData={fetchAllData}
         />;
       case Page.EMPLOYEES:
-        return <EmployeesScreen employees={employees} setEmployees={setEmployees} fetchAllData={fetchAllData} />;
+        return (
+          <EmployeesScreen
+            employees={employees}
+            setEmployees={setEmployees}
+            condominiums={condominiums}
+            setCondominiums={setCondominiums}
+            fetchAllData={fetchAllData}
+          />
+        );
       case Page.WHATSAPP_CHAT:
         return <WhatsAppChatScreen />;
       default:

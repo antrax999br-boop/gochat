@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Employee } from '../types';
+
 import {
     Users,
     Search,
@@ -15,8 +15,10 @@ import {
     Briefcase,
     Calendar,
     Clock,
-    FileDown
+    FileDown,
+    Building
 } from 'lucide-react';
+import { Employee, Condominium } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -25,14 +27,28 @@ import { supabase } from '../lib/supabase';
 interface EmployeesScreenProps {
     employees: Employee[];
     setEmployees?: (employees: Employee[]) => void;
+    condominiums: Condominium[];
+    setCondominiums?: (condominiums: Condominium[]) => void;
     fetchAllData: () => Promise<void>;
 }
 
-const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmployees, fetchAllData }) => {
+const EmployeesScreen: React.FC<EmployeesScreenProps> = ({
+    employees,
+    setEmployees,
+    condominiums,
+    setCondominiums,
+    fetchAllData
+}) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showEmployeeModal, setShowEmployeeModal] = useState(false);
     const [employeeForm, setEmployeeForm] = useState<Partial<Employee>>({});
     const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+
+    // Condominium States
+    const [showCondominiumModal, setShowCondominiumModal] = useState(false);
+    const [condominiumForm, setCondominiumForm] = useState<Partial<Condominium>>({});
+    const [selectedCondominium, setSelectedCondominium] = useState<string>('all');
+    const [isSavingCondo, setIsSavingCondo] = useState(false);
 
     // Auto-calculate totals when form changes
     useEffect(() => {
@@ -64,6 +80,22 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
             }));
         }
     }, [employeeForm.absenceDays, employeeForm.baseSalary]);
+
+    const filteredEmployees = useMemo(() => {
+        return employees.filter(emp => {
+            const matchesSearch =
+                emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                emp.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                emp.costCenter.toLowerCase().includes(searchTerm.toLowerCase());
+
+            const matchesCondo =
+                selectedCondominium === 'all' ||
+                (selectedCondominium === 'none' && !emp.condominiumId) ||
+                emp.condominiumId === selectedCondominium;
+
+            return matchesSearch && matchesCondo;
+        });
+    }, [employees, searchTerm, selectedCondominium]);
 
     const calculateTotal = (emp: Partial<Employee>) => {
         const remuneration = (emp.baseSalary || 0) + (emp.additionalPercent20 || 0) + (emp.attendance || 0);
@@ -101,6 +133,7 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
                 fuel: Number(employeeForm.fuel) || 0,
                 car_rental: Number(employeeForm.carRental) || 0,
                 observations: employeeForm.observations || '',
+                condominium_id: employeeForm.condominiumId || null,
                 status: 'active'
             };
 
@@ -169,31 +202,57 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
     };
 
     const handleDeleteEmployee = async (id: string) => {
-        if (confirm('Tem certeza que deseja excluir este funcionário?')) {
-            try {
-                await supabase.from('employees').delete().eq('id', id);
-                await fetchAllData();
-            } catch (error) {
-                console.error('Error deleting employee:', error);
-                alert('Erro ao excluir funcionário.');
-            }
+        if (!window.confirm('Excluir funcionário permanentemente?')) return;
+        try {
+            const { error } = await supabase.from('employees').delete().eq('id', id);
+            if (error) throw error;
+            fetchAllData();
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Erro ao excluir.');
         }
     };
 
-    const filteredEmployees = useMemo(() => {
-        if (!employees) return [];
-        return employees.filter(emp => {
-            if (!emp) return false;
-            const search = (searchTerm || '').toLowerCase();
-            const fullName = (emp.fullName || '').toLowerCase();
-            const position = (emp.position || '').toLowerCase();
-            const costCenter = (emp.costCenter || '').toLowerCase();
+    const handleSaveCondominium = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!condominiumForm.name) return;
 
-            return fullName.includes(search) ||
-                position.includes(search) ||
-                costCenter.includes(search);
-        });
-    }, [employees, searchTerm]);
+        setIsSavingCondo(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const dataToSave = {
+                name: condominiumForm.name,
+                address: condominiumForm.address,
+                user_id: user?.id
+            };
+
+            const { error } = await supabase.from('condominiums').insert(dataToSave);
+            if (error) throw error;
+
+            setCondominiumForm({});
+            setShowCondominiumModal(false);
+            fetchAllData();
+        } catch (error) {
+            console.error('Error saving condominium:', error);
+            alert('Erro ao salvar condomínio. Verifique se a tabela existe no banco de dados.');
+        } finally {
+            setIsSavingCondo(false);
+        }
+    };
+
+    const handleDeleteCondominium = async (id: string) => {
+        if (!window.confirm('Excluir este condomínio? Funcionários associados ficarão sem condomínio.')) return;
+        try {
+            const { error } = await supabase.from('condominiums').delete().eq('id', id);
+            if (error) throw error;
+            fetchAllData();
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Erro ao excluir condomínio.');
+        }
+    };
+
+
 
     const stats = useMemo(() => {
         const totalPayroll = employees.reduce((acc, emp) => acc + calculateTotal(emp), 0);
@@ -371,6 +430,12 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
                 </div>
                 <div className="flex gap-3">
                     <button
+                        onClick={() => setShowCondominiumModal(true)}
+                        className="flex items-center gap-2 px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm transition-all hover:scale-105 active:scale-95"
+                    >
+                        <Building className="w-5 h-5" /> Condomínios
+                    </button>
+                    <button
                         onClick={exportToPDF}
                         disabled={employees.length === 0}
                         className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
@@ -419,15 +484,48 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
             </div>
 
             {/* Search */}
-            <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Buscar por nome, cargo ou centro de custo..."
-                    className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-slate-900 dark:text-white shadow-sm"
-                />
+            <div className="space-y-4">
+                <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar por nome, cargo ou centro de custo..."
+                        className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-slate-900 dark:text-white shadow-sm"
+                    />
+                </div>
+
+                {/* Condominium Filter Chips */}
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        onClick={() => setSelectedCondominium('all')}
+                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${selectedCondominium === 'all'
+                            ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-emerald-500'}`}
+                    >
+                        Todos os Condomínios
+                    </button>
+                    {condominiums.map(condo => (
+                        <button
+                            key={condo.id}
+                            onClick={() => setSelectedCondominium(condo.id)}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${selectedCondominium === condo.id
+                                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-emerald-500'}`}
+                        >
+                            {condo.name}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => setSelectedCondominium('none')}
+                        className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${selectedCondominium === 'none'
+                            ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-emerald-500'}`}
+                    >
+                        Sem Condomínio
+                    </button>
+                </div>
             </div>
 
             {/* Employees Table */}
@@ -436,7 +534,8 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
                     <table className="w-full">
                         <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
                             <tr>
-                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Centro Custo</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Condomínio</th>
+                                <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">C.Custo</th>
                                 <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nome</th>
                                 <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Função</th>
                                 <th className="text-left p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Admissão</th>
@@ -452,10 +551,17 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
                                 const total = calculateTotal(emp);
                                 return (
                                     <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                                        <td className="p-4 text-sm font-medium text-slate-900 dark:text-white">{emp.costCenter}</td>
+                                        <td className="p-4 text-sm text-slate-600 dark:text-slate-400">
+                                            {emp.condominiumName || (
+                                                <span className="text-[10px] text-slate-300 dark:text-slate-700 italic">Individual</span>
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-sm font-medium text-slate-900 dark:text-white uppercase">{emp.costCenter}</td>
                                         <td className="p-4 text-sm font-bold text-slate-900 dark:text-white">{emp.fullName}</td>
                                         <td className="p-4 text-sm text-slate-600 dark:text-slate-400">{emp.position}</td>
-                                        <td className="p-4 text-sm text-slate-600 dark:text-slate-400">{new Date(emp.hireDate).toLocaleDateString('pt-BR')}</td>
+                                        <td className="p-4 text-sm text-slate-600 dark:text-slate-400">
+                                            {emp.hireDate ? new Date(emp.hireDate).toLocaleDateString('pt-BR') : '-'}
+                                        </td>
                                         <td className="p-4 text-sm text-slate-600 dark:text-slate-400">{emp.workSchedule}</td>
                                         <td className="p-4 text-sm text-right font-bold text-slate-900 dark:text-white">R$ {(emp.baseSalary || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                         <td className="p-4 text-sm text-right text-emerald-600">R$ {(emp.additionalPercent20 || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -519,6 +625,19 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
                                     Dados Básicos
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="md:col-span-1">
+                                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Condomínio</label>
+                                        <select
+                                            value={employeeForm.condominiumId || ''}
+                                            onChange={(e) => setEmployeeForm({ ...employeeForm, condominiumId: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
+                                        >
+                                            <option value="">Individual / Sem Condomínio</option>
+                                            {condominiums.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                     <div>
                                         <label className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 block">Centro de Custo *</label>
                                         <input
@@ -790,6 +909,86 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+            {/* Condominium Management Modal */}
+            {showCondominiumModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-100 dark:bg-emerald-500/10 rounded-xl">
+                                    <Building className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
+                                </div>
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Gerenciar Condomínios</h2>
+                            </div>
+                            <button
+                                onClick={() => setShowCondominiumModal(false)}
+                                className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"
+                            >
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {/* Create New Form */}
+                            <form onSubmit={handleSaveCondominium} className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-500/20 space-y-4">
+                                <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Novo Condomínio</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Nome do Condomínio"
+                                        value={condominiumForm.name || ''}
+                                        onChange={e => setCondominiumForm({ ...condominiumForm, name: e.target.value })}
+                                        className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                                        required
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Endereço (Opcional)"
+                                        value={condominiumForm.address || ''}
+                                        onChange={e => setCondominiumForm({ ...condominiumForm, address: e.target.value })}
+                                        className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={isSavingCondo}
+                                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50"
+                                >
+                                    {isSavingCondo ? 'Salvando...' : 'Adicionar Condomínio'}
+                                </button>
+                            </form>
+
+                            {/* List of Condominiums */}
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Condomínios Cadastrados</h3>
+                                {condominiums.length === 0 ? (
+                                    <p className="text-center py-8 text-slate-400 text-sm">Nenhum condomínio cadastrado.</p>
+                                ) : (
+                                    condominiums.map(condo => (
+                                        <div key={condo.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl hover:border-emerald-500/30 transition-colors group">
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
+                                                    <Building className="w-5 h-5 text-slate-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-900 dark:text-white">{condo.name}</h4>
+                                                    <p className="text-xs text-slate-500">{condo.address || 'Sem endereço'}</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteCondominium(condo.id)}
+                                                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Trash2 className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

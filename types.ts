@@ -111,8 +111,19 @@ export interface NotificationItem {
   page?: Page;
 }
 
+export interface Condominium {
+  id: string;
+  name: string;
+  address?: string;
+  createdAt?: string;
+}
+
 export interface Employee {
   id: string;
+
+  // Condomínio
+  condominiumId?: string;
+  condominiumName?: string;
 
   // Dados Básicos
   costCenter: string;
