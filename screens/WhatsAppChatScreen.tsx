@@ -324,7 +324,7 @@ const WhatsAppChatScreen: React.FC = () => {
 
                         <div
                             ref={chatContainerRef}
-                            className="flex-1 overflow-y-auto p-8 space-y-4 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed"
+                            className="flex-1 overflow-y-auto p-8 space-y-4"
                         >
                             {isLoadingMessages ? (
                                 <div className="h-full flex items-center justify-center font-bold text-slate-400 animate-pulse">

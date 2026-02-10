@@ -647,7 +647,7 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
                                             </div>
                                         ))}
                                         {currentQuoteItems.length === 0 && (
-                                            <div className="text-center py-10 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-2xl text-slate-400 font-bold text-sm">
+                                            <div className="text-center py-10 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-slate-400 font-bold text-sm">
                                                 Toque em um serviço para adicionar
                                             </div>
                                         )}

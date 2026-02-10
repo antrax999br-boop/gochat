@@ -202,13 +202,12 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems 
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', color: '#fff' }}
                 />
                 <Area type="monotone" dataKey="Saldo" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorSaldo)" />
-                <Area type="monotone" dataKey="Receita" stroke="#3b82f6" strokeWidth={1} fillOpacity={0} strokeDasharray="3 3" />
+                <Area type="monotone" dataKey="Receita" stroke="#3b82f6" strokeWidth={1} fillOpacity={0} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -239,7 +238,6 @@ const DashboardScreen: React.FC<DashboardProps> = ({ transactions, expenseItems 
 
             <div className="mt-6">
               <div className={`rounded-2xl p-6 text-white shadow-xl relative overflow-hidden group ${stats.totalBalance >= 0 ? 'bg-gradient-to-br from-emerald-500 to-green-600 shadow-emerald-500/20' : 'bg-gradient-to-br from-rose-500 to-red-600 shadow-rose-500/20'}`}>
-                <Activity className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10 group-hover:rotate-12 transition-transform duration-500" />
                 <div className="relative z-10 flex justify-between items-end">
                   <div>
                     <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Status Geral</p>

@@ -260,9 +260,6 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-            <Wallet className="w-16 h-16 text-slate-400" />
-          </div>
           <p className="text-sm font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">Saldo Geral</p>
           <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-2 tracking-tight">R$ {stats.balance.toLocaleString()}</h3>
           <div className="mt-4 flex items-center gap-2">
@@ -386,7 +383,6 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
           <div className="flex-1 min-h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke="#f1f5f9" opacity={0.1} />
                 <XAxis
                   dataKey="name"
                   axisLine={false}

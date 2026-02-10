@@ -380,7 +380,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
 
             <div
               ref={chatContainerRef}
-              className="flex-1 overflow-y-auto p-8 space-y-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed"
+              className="flex-1 overflow-y-auto p-8 space-y-8"
             >
               {messages.map((msg) => {
                 const isMe = msg.sender_id === currentUser.id;
