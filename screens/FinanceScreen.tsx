@@ -113,22 +113,25 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
     try {
       const doc = new jsPDF();
 
-      // Load and add logo
-      const img = new Image();
-      img.src = '/logo.png';
-      await new Promise((resolve) => {
-        img.onload = resolve;
-        img.onerror = resolve;
-      });
+      // Tenta carregar a logo de forma robusta
+      try {
+        const logoUrl = `${window.location.origin}/logo.png`;
+        const resp = await fetch(logoUrl);
+        const blob = await resp.blob();
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
 
-      if (img.complete && img.naturalWidth > 0) {
-        doc.addImage(img, 'PNG', 14, 10, 20, 20);
+        doc.addImage(base64, 'PNG', 14, 8, 20, 20);
         doc.setFontSize(22);
         doc.setTextColor(33, 33, 33);
         doc.text(`Relatório Financeiro`, 38, 20);
         doc.setFontSize(14);
         doc.text(`Go Solutions - ${selectedMonth}`, 38, 28);
-      } else {
+      } catch (e) {
+        console.error("Erro ao carregar logo para o PDF:", e);
         doc.setFontSize(22);
         doc.setTextColor(33, 33, 33);
         doc.text(`Relatório Financeiro - ${selectedMonth}`, 14, 20);

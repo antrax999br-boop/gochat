@@ -231,18 +231,21 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         doc.setFontSize(24);
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        // Load and add logo
-        const img = new Image();
-        img.src = '/logo.png';
-        await new Promise((resolve) => {
-            img.onload = resolve;
-            img.onerror = resolve; // Continue even if image fails
-        });
+        // Tenta carregar a logo de forma robusta
+        try {
+            const logoUrl = `${window.location.origin}/logo.png`;
+            const resp = await fetch(logoUrl);
+            const blob = await resp.blob();
+            const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+            });
 
-        if (img.complete && img.naturalWidth > 0) {
-            doc.addImage(img, 'PNG', 14, 10, 25, 25);
-            doc.text('GO SOLUTIONS', 42, 25);
-        } else {
+            doc.addImage(base64, 'PNG', 14, 5, 30, 30);
+            doc.text('GO SOLUTIONS', 48, 25);
+        } catch (e) {
+            console.error("Erro ao carregar logo para o PDF:", e);
             doc.text('GO SOLUTIONS', 14, 25);
         }
 

@@ -211,29 +211,32 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
         const doc = new jsPDF('landscape');
         const pageWidth = doc.internal.pageSize.width;
 
-        // Load logo
-        const img = new Image();
-        img.src = '/logo.png';
-        await new Promise((resolve) => {
-            img.onload = resolve;
-            img.onerror = resolve;
-        });
-
         // Header
         doc.setFillColor(16, 185, 129); // emerald-500
         doc.rect(0, 0, pageWidth, 35, 'F');
 
         doc.setTextColor(255, 255, 255);
 
-        if (img.complete && img.naturalWidth > 0) {
-            doc.addImage(img, 'PNG', 14, 5, 25, 25);
+        // Tenta carregar a logo de forma robusta
+        try {
+            const logoUrl = `${window.location.origin}/logo.png`;
+            const resp = await fetch(logoUrl);
+            const blob = await resp.blob();
+            const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+            });
+
+            doc.addImage(base64, 'PNG', 14, 5, 25, 25);
             doc.setFontSize(22);
             doc.setFont('helvetica', 'bold');
             doc.text('FOLHA DE PAGAMENTO', 45, 18);
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
             doc.text('Go Solutions', 45, 26);
-        } else {
+        } catch (e) {
+            console.error("Erro ao carregar logo para o PDF:", e);
             doc.setFontSize(22);
             doc.setFont('helvetica', 'bold');
             doc.text('FOLHA DE PAGAMENTO', pageWidth / 2, 15, { align: 'center' });
