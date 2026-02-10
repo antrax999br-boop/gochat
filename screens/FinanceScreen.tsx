@@ -51,8 +51,15 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
   const chartRef = useRef<HTMLDivElement>(null);
 
   const stats = useMemo(() => {
-    // Filter transactions by selected month first
-    const monthTransactions = transactions.filter(t => t.month === selectedMonth);
+    // Filter transactions by selected month index (0-11)
+    const monthIndex = months.indexOf(selectedMonth);
+    const monthTransactions = transactions.filter(t => {
+      if (!t.date) return false;
+      const parts = t.date.split('-');
+      if (parts.length < 2) return false;
+      const tMonthIndex = parseInt(parts[1], 10) - 1;
+      return tMonthIndex === monthIndex;
+    });
 
     // Actual transactions for this month
     const income = monthTransactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc, 0);
@@ -70,12 +77,18 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
   }, [transactions, expenseItems, selectedMonth]);
 
   const filteredTransactions = useMemo(() => {
+    const monthIndex = months.indexOf(selectedMonth);
     return transactions.filter(t => {
-      const matchesMonth = t.month === selectedMonth;
+      if (!t.date) return false;
+      const parts = t.date.split('-');
+      if (parts.length < 2) return false;
+      const tMonthIndex = parseInt(parts[1], 10) - 1;
+
+      const matchesMonth = tMonthIndex === monthIndex;
       const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.category.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesMonth && matchesSearch;
-    });
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, selectedMonth, searchTerm]);
 
   const chartData = useMemo(() => {
@@ -373,7 +386,7 @@ const FinanceScreen: React.FC<FinanceScreenProps> = ({ transactions, expenseItem
           <div className="flex-1 min-h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <CartesianGrid vertical={false} stroke="#f1f5f9" opacity={0.1} />
                 <XAxis
                   dataKey="name"
                   axisLine={false}
