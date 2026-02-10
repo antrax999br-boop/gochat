@@ -490,7 +490,7 @@ const ConversationsScreen: React.FC<ConversationsScreenProps> = ({ currentUser }
             <div className="w-24 h-24 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center text-emerald-500 mb-8 border-4 border-emerald-500/5">
               <MessageCircle className="w-12 h-12" />
             </div>
-            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">Schumacher Chat</h3>
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">Go Chat</h3>
             <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-sm text-sm">Escolha alguém ao lado para conversar.</p>
           </div>
         )}

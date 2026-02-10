@@ -86,7 +86,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
                 <Zap className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold tracking-tight">Schumacher Tecnologia Ltda.</span>
+              <span className="text-2xl font-bold tracking-tight">Go Solutions</span>
             </div>
 
             <h2 className="text-4xl font-extrabold leading-tight mb-6">
@@ -112,7 +112,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 {isRegistering ? 'Crie sua conta' : 'Bem-vindo de volta'}
               </h1>
               <p className="text-slate-500">
-                {isRegistering ? 'Cadastre-se para começar a usar a Schumacher.' : 'Insira seus dados para acessar o painel.'}
+                {isRegistering ? 'Cadastre-se para começar a usar a Go Solutions.' : 'Insira seus dados para acessar o painel.'}
               </p>
             </div>
 

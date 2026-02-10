@@ -49,7 +49,7 @@ const App: React.FC = () => {
   useAntiGravitGuard(user, () => setUser(null));
 
   useEffect(() => {
-    console.log("App Schumacher v1.1 - Supabase Sync Active");
+    console.log("App Go Solutions v1.2 - Supabase Sync Active");
     // 1. Initial Supabase Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -83,7 +83,7 @@ const App: React.FC = () => {
       }
     });
 
-    const theme = localStorage.getItem('schumacher_theme');
+    const theme = localStorage.getItem('gosolutions_theme');
     if (theme === 'dark') {
       setIsDarkMode(true);
       document.documentElement.classList.add('dark');
@@ -404,7 +404,7 @@ const App: React.FC = () => {
     if (!viewedNotifications.includes(notification.id)) {
       const newViewed = [...viewedNotifications, notification.id];
       setViewedNotifications(newViewed);
-      localStorage.setItem('schumacher_viewed_notifications', JSON.stringify(newViewed));
+      localStorage.setItem('gosolutions_viewed_notifications', JSON.stringify(newViewed));
     }
 
     if (notification.page) {
@@ -495,10 +495,10 @@ const App: React.FC = () => {
     setIsDarkMode(!isDarkMode);
     if (!isDarkMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('schumacher_theme', 'dark');
+      localStorage.setItem('gosolutions_theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('schumacher_theme', 'light');
+      localStorage.setItem('gosolutions_theme', 'light');
     }
   };
 

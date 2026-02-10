@@ -222,7 +222,7 @@ const EmployeesScreen: React.FC<EmployeesScreenProps> = ({ employees, setEmploye
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text('Schumacher Tecnologia Ltda.', pageWidth / 2, 23, { align: 'center' });
+        doc.text('Go Solutions', pageWidth / 2, 23, { align: 'center' });
         doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, 29, { align: 'center' });
 
         // Summary Cards

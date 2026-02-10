@@ -13,7 +13,7 @@ export function logout() {
     if (typeof window !== "undefined") {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        localStorage.removeItem("schumacher_theme"); // Opcional, mas limpa o estado
+        localStorage.removeItem("gosolutions_theme"); // Opcional, mas limpa o estado
         sessionStorage.clear();
 
         // Limpeza agressiva de cookies

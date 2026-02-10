@@ -1,4 +1,4 @@
-# Vitta Chatbot Manager & Schumacher Tecnologia
+# Go Solutions - Chatbot Manager
 
 Este repositório contém o sistema completo de gestão de chatbot e painel administrativo.
 

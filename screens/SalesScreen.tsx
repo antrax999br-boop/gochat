@@ -225,13 +225,13 @@ const SalesScreen: React.FC<SalesScreenProps> = ({ clients, quotes, services, on
         const doc = new jsPDF();
 
         // Header
-        doc.setFillColor(16, 185, 129); // Schumacher Emerald
+        doc.setFillColor(16, 185, 129); // Primary Emerald
         doc.rect(0, 0, 210, 40, 'F');
 
         doc.setFontSize(24);
         doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        doc.text('SCHUMACHER TECNOLOGIA', 14, 25);
+        doc.text('GO SOLUTIONS', 14, 25);
 
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
