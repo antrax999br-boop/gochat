@@ -59,15 +59,24 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   return (
     <aside className="w-64 flex flex-col bg-white dark:bg-slate-950 border-r border-gray-200 dark:border-slate-800 flex-shrink-0 z-20 transition-colors">
       <div
-        className="h-20 flex items-center px-6 border-b border-gray-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+        className="h-24 flex items-center px-6 border-b border-gray-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
         onClick={() => onNavigate(Page.DASHBOARD)}
       >
-        <div className="flex items-center gap-3 w-full">
-          <img
-            src="/logo.png"
-            alt="Go Solutions Logo"
-            className="h-10 w-auto object-contain"
-          />
+        <div className="flex flex-col gap-2 w-full">
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.png"
+              alt="Logo"
+              className="h-10 w-auto object-contain"
+            />
+            <div className="flex flex-col">
+              <span className="font-extrabold text-lg tracking-tight text-slate-900 dark:text-white leading-none flex items-center gap-1">
+                Go Solutions
+                <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 text-[8px] rounded-md border border-emerald-500/20">v1.2</span>
+              </span>
+              <span className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-widest mt-0.5">Gestão Inteligente</span>
+            </div>
+          </div>
         </div>
       </div>
 
